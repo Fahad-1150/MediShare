@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 import 'login_page.dart';
-
-enum UserRole { receiver, donor }
+import '../state/auth_state.dart';
 
 class SignupPage extends StatefulWidget {
   const SignupPage({super.key});
@@ -14,26 +14,75 @@ class _SignupPageState extends State<SignupPage> {
   final _nameController = TextEditingController();
   final _emailController = TextEditingController();
   final _phoneController = TextEditingController();
+  final _locationController = TextEditingController();
   final _passwordController = TextEditingController();
+  final _confirmPasswordController = TextEditingController();
 
-  UserRole role = UserRole.receiver;
   bool loading = false;
+  String? errorMessage;
+
+  @override
+  void dispose() {
+    _nameController.dispose();
+    _emailController.dispose();
+    _phoneController.dispose();
+    _locationController.dispose();
+    _passwordController.dispose();
+    _confirmPasswordController.dispose();
+    super.dispose();
+  }
 
   Future<void> handleSignup() async {
-    setState(() => loading = true);
+    // Validation
+    if (_nameController.text.isEmpty ||
+        _emailController.text.isEmpty ||
+        _phoneController.text.isEmpty ||
+        _passwordController.text.isEmpty) {
+      setState(() => errorMessage = 'Please fill all fields');
+      return;
+    }
 
-    await Future.delayed(const Duration(seconds: 1));
+    if (_passwordController.text != _confirmPasswordController.text) {
+      setState(() => errorMessage = 'Passwords do not match');
+      return;
+    }
 
-    setState(() => loading = false);
+    if (_passwordController.text.length < 6) {
+      setState(() => errorMessage = 'Password must be at least 6 characters');
+      return;
+    }
 
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Account created successfully')),
+    setState(() => errorMessage = null);
+
+    final auth = context.read<AuthState>();
+    final success = await auth.register(
+      email: _emailController.text,
+      password: _passwordController.text,
+      name: _nameController.text,
+      phone: _phoneController.text,
+      location: _locationController.text.isNotEmpty
+          ? _locationController.text
+          : 'Dhaka',
     );
+
+    if (success) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Account created successfully! Welcome to MediShare'),
+            backgroundColor: Colors.green,
+          ),
+        );
+        Navigator.pushReplacementNamed(context, '/home');
+      }
+    } else {
+      setState(() => errorMessage = auth.errorMessage ?? 'Signup failed');
+    }
   }
 
   @override
   Widget build(BuildContext context) {
-    final isWide = MediaQuery.of(context).size.width > 600;
+    final auth = context.watch<AuthState>();
 
     return Scaffold(
       body: Center(
@@ -58,72 +107,84 @@ class _SignupPageState extends State<SignupPage> {
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                 
                   const Text(
                     'MediShare',
                     style: TextStyle(fontSize: 28, fontWeight: FontWeight.w900),
                   ),
                   const SizedBox(height: 10),
                   const Text(
-                    'Create an account to start your journey',
+                    'Create an account to donate and request medicines',
                     style: TextStyle(color: Colors.black54),
                   ),
-                  const SizedBox(height: 36),
-
-                  
-                  isWide
-                      ? Row(
-                          children: [
-                            Expanded(child: _nameField()),
-                            const SizedBox(width: 16),
-                            Expanded(child: _roleField()),
-                          ],
-                        )
-                      : Column(
-                          children: [
-                            _nameField(),
-                            const SizedBox(height: 16)
-                           
-                          ],
-                        ),
-
+                  const SizedBox(height: 24),
+                  // Error message
+                  if (errorMessage != null)
+                    Container(
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: Colors.red.shade50,
+                        border: Border.all(color: Colors.red.shade300),
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: Row(
+                        children: [
+                          Icon(Icons.error_outline, color: Colors.red.shade600),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: Text(
+                              errorMessage!,
+                              style: TextStyle(color: Colors.red.shade600),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  const SizedBox(height: 20),
+                  // Name field
+                  _nameField(),
                   const SizedBox(height: 16),
-
+                  // Email field
                   _emailField(),
                   const SizedBox(height: 16),
-
+                  // Phone field
                   _phoneField(),
                   const SizedBox(height: 16),
-
+                  // Location field
+                  _locationField(),
+                  const SizedBox(height: 16),
+                  // Password field
                   _passwordField(),
+                  const SizedBox(height: 16),
+                  // Confirm password
+                  _confirmPasswordField(),
                   const SizedBox(height: 28),
-
                   // Signup Button
                   SizedBox(
                     width: double.infinity,
                     height: 56,
                     child: ElevatedButton(
-                      onPressed: loading ? null : handleSignup,
+                      onPressed: auth.isLoading || loading
+                          ? null
+                          : handleSignup,
                       style: ElevatedButton.styleFrom(
-                        backgroundColor: Colors.blue,
+                        backgroundColor: Color.fromARGB(255, 4, 113, 78),
                         shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(16),
                         ),
                         elevation: 6,
                       ),
                       child: Text(
-                        loading ? 'Creating Account...' : 'Sign Up',
+                        auth.isLoading ? 'Creating Account...' : 'Sign Up',
                         style: const TextStyle(
                           fontSize: 18,
-                          fontWeight: FontWeight.bold,color: Colors.white
+                          fontWeight: FontWeight.bold,
+                          color: Colors.white,
                         ),
                       ),
                     ),
                   ),
-
                   const SizedBox(height: 28),
-
-                 
+                  // Login link
                   Row(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
@@ -133,7 +194,7 @@ class _SignupPageState extends State<SignupPage> {
                       ),
                       GestureDetector(
                         onTap: () {
-                          Navigator.push(
+                          Navigator.pushReplacement(
                             context,
                             MaterialPageRoute(
                               builder: (_) => const LoginPage(),
@@ -143,7 +204,7 @@ class _SignupPageState extends State<SignupPage> {
                         child: const Text(
                           'Sign in',
                           style: TextStyle(
-                            color: Colors.blue,
+                            color: Color.fromARGB(255, 4, 113, 78),
                             fontWeight: FontWeight.bold,
                           ),
                         ),
@@ -159,12 +220,11 @@ class _SignupPageState extends State<SignupPage> {
     );
   }
 
- 
   Widget _nameField() {
     return _field(
       label: 'Full Name',
       controller: _nameController,
-      hint: 'Nazmul Haque',
+      hint: 'Your name',
     );
   }
 
@@ -172,7 +232,7 @@ class _SignupPageState extends State<SignupPage> {
     return _field(
       label: 'Email Address',
       controller: _emailController,
-      hint: 'example@medishare.org',
+      hint: 'example@email.com',
       keyboard: TextInputType.emailAddress,
     );
   }
@@ -186,6 +246,14 @@ class _SignupPageState extends State<SignupPage> {
     );
   }
 
+  Widget _locationField() {
+    return _field(
+      label: 'Location (City)',
+      controller: _locationController,
+      hint: 'Dhaka, Chittagong, etc.',
+    );
+  }
+
   Widget _passwordField() {
     return _field(
       label: 'Password',
@@ -195,27 +263,12 @@ class _SignupPageState extends State<SignupPage> {
     );
   }
 
-  Widget _roleField() {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        _label('Role'),
-        DropdownButtonFormField<UserRole>(
-          value: role,
-          decoration: _decoration(),
-          items: const [
-            DropdownMenuItem(
-              value: UserRole.receiver,
-              child: Text('Receiver (Needs Medicine)'),
-            ),
-            DropdownMenuItem(
-              value: UserRole.donor,
-              child: Text('Donor (Has Medicine)'),
-            ),
-          ],
-          onChanged: (value) => setState(() => role = value!),
-        ),
-      ],
+  Widget _confirmPasswordField() {
+    return _field(
+      label: 'Confirm Password',
+      controller: _confirmPasswordController,
+      hint: 'Confirm your password',
+      obscure: true,
     );
   }
 

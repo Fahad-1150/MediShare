@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 import 'signup_page.dart';
+import '../state/auth_state.dart';
 
 class LoginPage extends StatefulWidget {
   const LoginPage({super.key});
@@ -9,38 +11,55 @@ class LoginPage extends StatefulWidget {
 }
 
 class _LoginPageState extends State<LoginPage> {
-  final _identifierController = TextEditingController();
+  final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
 
-  bool loading = false;
-  String error = '';
+  @override
+  void dispose() {
+    _emailController.dispose();
+    _passwordController.dispose();
+    super.dispose();
+  }
 
   Future<void> handleLogin() async {
-    setState(() {
-      loading = true;
-      error = '';
-    });
+    final auth = context.read<AuthState>();
 
-    await Future.delayed(const Duration(milliseconds: 800));
+    final email = _emailController.text.trim().toLowerCase();
+    final password = _passwordController.text.trim();
 
-    if (_identifierController.text.isEmpty ||
-        _passwordController.text.isEmpty) {
-      setState(() {
-        error = 'Please provide informations !';
-        loading = false;
-      });
-      return;
+    final success = await auth.login(email: email, password: password);
+
+    if (!mounted) return;
+
+    if (success) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Signed in successfully!'),
+          backgroundColor: Colors.green,
+        ),
+      );
+
+      // ✅ ADMIN CHECK
+      if (email == 'nfahad066@gmail.com') {
+        Navigator.pushReplacementNamed(context, '/admin');
+      } else {
+        // ✅ NORMAL USER DASHBOARD
+        Navigator.pushReplacementNamed(context, '/profile');
+      }
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(auth.errorMessage ?? 'Login failed'),
+          backgroundColor: Colors.red,
+        ),
+      );
     }
-
-    setState(() => loading = false);
-
-    ScaffoldMessenger.of(
-      context,
-    ).showSnackBar(const SnackBar(content: Text('Signed in!')));
   }
 
   @override
   Widget build(BuildContext context) {
+    final auth = context.watch<AuthState>();
+
     return Scaffold(
       body: Center(
         child: SingleChildScrollView(
@@ -65,31 +84,49 @@ class _LoginPageState extends State<LoginPage> {
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   const Text(
-                    'Welcome',
+                    'Welcome Back',
                     style: TextStyle(fontSize: 28, fontWeight: FontWeight.w900),
                   ),
                   const SizedBox(height: 10),
                   const Text(
-                    'Sign in to help others',
+                    'Sign in to your MediShare account',
                     style: TextStyle(color: Colors.black54),
-                  ),
-                  const SizedBox(height: 36),
-
-                  _label('Email or Phone'),
-                  TextField(
-                    controller: _identifierController,
-                    decoration: _inputDecoration(
-                      hint: 'fahad@email.com or +880...',
-                    ),
                   ),
                   const SizedBox(height: 20),
 
+                  // Demo credentials hint
+                  const SizedBox(height: 16),
+                  // Quick login buttons
+                  SizedBox(
+                    width: double.infinity,
+                    child: Wrap(spacing: 8, runSpacing: 8, children: [
+                        
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 24),
+                  // Email field
+                  _label('Email Address'),
+                  TextField(
+                    controller: _emailController,
+                    keyboardType: TextInputType.emailAddress,
+                    decoration: _inputDecoration(hint: 'your@email.com'),
+                  ),
+                  const SizedBox(height: 20),
+                  // Password field
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
                       _label('Password'),
                       TextButton(
-                        onPressed: () {},
+                        onPressed: () {
+                          // Forgot password functionality
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(
+                              content: Text('Feature coming soon'),
+                            ),
+                          );
+                        },
                         child: const Text(
                           'Forgot?',
                           style: TextStyle(
@@ -103,44 +140,23 @@ class _LoginPageState extends State<LoginPage> {
                   TextField(
                     controller: _passwordController,
                     obscureText: true,
-                    decoration: _inputDecoration(hint: '••••••••'),
+                    decoration: _inputDecoration(hint: 'Password'),
                   ),
-
-                  const SizedBox(height: 16),
-
-                  if (error.isNotEmpty)
-                    Container(
-                      width: double.infinity,
-                      padding: const EdgeInsets.all(12),
-                      decoration: BoxDecoration(
-                        color: Colors.red.shade50,
-                        borderRadius: BorderRadius.circular(12),
-                        border: Border.all(color: Colors.red.shade100),
-                      ),
-                      child: Text(
-                        error,
-                        style: const TextStyle(
-                          color: Colors.red,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                    ),
-
                   const SizedBox(height: 24),
-
+                  // Sign in button
                   SizedBox(
                     width: double.infinity,
                     height: 56,
                     child: ElevatedButton(
-                      onPressed: loading ? null : handleLogin,
+                      onPressed: auth.isLoading ? null : handleLogin,
                       style: ElevatedButton.styleFrom(
-                        backgroundColor: Colors.blue,
+                        backgroundColor: Color.fromARGB(255, 4, 113, 78),
                         shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(16),
                         ),
                         elevation: 6,
                       ),
-                      child: loading
+                      child: auth.isLoading
                           ? Row(
                               mainAxisAlignment: MainAxisAlignment.center,
                               children: const [
@@ -149,13 +165,18 @@ class _LoginPageState extends State<LoginPage> {
                                   height: 20,
                                   child: CircularProgressIndicator(
                                     strokeWidth: 2,
-                                    color: Colors.white,
+                                    valueColor: AlwaysStoppedAnimation<Color>(
+                                      Colors.white,
+                                    ),
                                   ),
                                 ),
                                 SizedBox(width: 12),
                                 Text(
-                                  'Plaese wait...',
-                                  style: TextStyle(fontWeight: FontWeight.bold),
+                                  'Signing in...',
+                                  style: TextStyle(
+                                    fontWeight: FontWeight.bold,
+                                    color: Colors.white,
+                                  ),
                                 ),
                               ],
                             )
@@ -169,9 +190,8 @@ class _LoginPageState extends State<LoginPage> {
                             ),
                     ),
                   ),
-
                   const SizedBox(height: 28),
-
+                  // Signup link
                   Row(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
@@ -181,7 +201,7 @@ class _LoginPageState extends State<LoginPage> {
                       ),
                       GestureDetector(
                         onTap: () {
-                          Navigator.push(
+                          Navigator.pushReplacement(
                             context,
                             MaterialPageRoute(
                               builder: (_) => const SignupPage(),
@@ -189,9 +209,9 @@ class _LoginPageState extends State<LoginPage> {
                           );
                         },
                         child: const Text(
-                          'Create one now',
+                          'Create one',
                           style: TextStyle(
-                            color: Colors.blue,
+                            color: Color.fromARGB(255, 4, 113, 78),
                             fontWeight: FontWeight.bold,
                           ),
                         ),

@@ -30,8 +30,17 @@ class MedicineCard extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(medicine.name, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-                Text(medicine.location, style: const TextStyle(color: Colors.grey)),
+                Text(
+                  medicine.name,
+                  style: const TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                Text(
+                  medicine.location,
+                  style: const TextStyle(color: Colors.grey),
+                ),
                 const SizedBox(height: 8),
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -39,13 +48,22 @@ class MedicineCard extends StatelessWidget {
                     Text('${medicine.quantity} units'),
                     Text(
                       '${medicine.expiryDate.month}/${medicine.expiryDate.year}',
-                      style: TextStyle(color: isExpiringSoon ? Colors.orange : Colors.black),
+                      style: TextStyle(
+                        color: isExpiringSoon ? Colors.orange : Colors.black,
+                      ),
                     ),
                   ],
                 ),
                 const SizedBox(height: 12),
                 ElevatedButton(
                   onPressed: () {},
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.teal,
+                    foregroundColor: Colors.white,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                  ),
                   child: const Text('Request Medicine'),
                 ),
               ],

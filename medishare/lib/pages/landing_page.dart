@@ -1,358 +1,399 @@
 import 'package:flutter/material.dart';
-import 'list.dart';
-import 'signup_page.dart';
 
-class LandingPage extends StatelessWidget {
+class LandingPage extends StatefulWidget {
   const LandingPage({super.key});
 
   @override
-  Widget build(BuildContext context) {
-    return SingleChildScrollView(
-      child: Stack(
-        children: [
-          Positioned(
-            top: -200,
-            right: -150,
-            child: _blurCircle(size: 600, color: Colors.blue.withOpacity(0.15)),
-          ),
-          Positioned(
-            bottom: -200,
-            left: -150,
-            child: _blurCircle(
-              size: 400,
-              color: Colors.green.withOpacity(0.15),
-            ),
-          ),
-
-          Column(
-            children: [
-              const SizedBox(height: 80),
-
-              // HERO SECTION
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 24),
-                child: Column(
-                  children: [
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 14,
-                        vertical: 6,
-                      ),
-                      decoration: BoxDecoration(
-                        color: Colors.blue.shade50,
-                        borderRadius: BorderRadius.circular(30),
-                        border: Border.all(color: Colors.blue.shade100),
-                      ),
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: const [
-                          _PulseDot(),
-                          SizedBox(width: 8),
-                          Text(
-                            'Assalamu-Walaikum',
-                            style: TextStyle(
-                              fontSize: 11,
-                              fontWeight: FontWeight.bold,
-                              letterSpacing: 1,
-                              color: Colors.blue,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                    const SizedBox(height: 30),
-
-                    RichText(
-                      textAlign: TextAlign.center,
-                      text: const TextSpan(
-                        style: TextStyle(
-                          fontSize: 44,
-                          height: 1.1,
-                          fontWeight: FontWeight.w900,
-                          color: Colors.black,
-                        ),
-                        children: [
-                          TextSpan(text: 'Share Hope,\n'),
-                          TextSpan(
-                            text: 'Not Waste.',
-                            style: TextStyle(color: Colors.blue),
-                          ),
-                        ],
-                      ),
-                    ),
-
-                    const SizedBox(height: 24),
-
-                    const Text(
-                      'MediShare\n'
-                      'Reduce medical waste and help save lives in your community today.',
-                      textAlign: TextAlign.center,
-                      style: TextStyle(
-                        fontSize: 18,
-                        height: 1.6,
-                        color: Colors.black54,
-                      ),
-                    ),
-
-                    const SizedBox(height: 40),
-
-                    Wrap(
-                      spacing: 16,
-                      runSpacing: 16,
-                      alignment: WrapAlignment.center,
-                      children: [
-                        ElevatedButton(
-                          style: ElevatedButton.styleFrom(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 32,
-                              vertical: 18,
-                            ),
-                            backgroundColor: Colors.blue,
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(16),
-                            ),
-                            elevation: 8,
-                          ),
-                          onPressed: () {
-                            Navigator.push(
-                              context,
-                              MaterialPageRoute(
-                                builder: (_) => const MedicineListPage(),
-                              ),
-                            );
-                          },
-                          child: const Text(
-                            'Find Medicines',
-                            style: TextStyle(
-                              fontSize: 18,
-                              fontWeight: FontWeight.bold,
-                              color: Colors.white,
-                            ),
-                          ),
-                        ),
-                        OutlinedButton(
-                          style: OutlinedButton.styleFrom(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 32,
-                              vertical: 18,
-                            ),
-                            side: const BorderSide(color: Colors.blue),
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(16),
-                            ),
-                          ),
-                          onPressed: () {
-                            Navigator.push(
-                              context,
-                              MaterialPageRoute(
-                                builder: (_) => const SignupPage(),
-                              ),
-                            );
-                          },
-                          child: const Text(
-                            'Register to Donate',
-                            style: TextStyle(
-                              fontSize: 18,
-                              fontWeight: FontWeight.bold,
-                              color: Colors.blue,
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ],
-                ),
-              ),
-
-              const SizedBox(height: 100),
-
-              Container(
-                width: double.infinity,
-                padding: const EdgeInsets.symmetric(vertical: 80),
-                color: Colors.white,
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 24),
-                  child: Column(
-                    children: [
-                      Wrap(
-                        spacing: 24,
-                        runSpacing: 24,
-                        children: const [
-                          _FeatureCard(
-                            icon: Icons.search,
-                            color: Colors.blue,
-                            title: 'Quick Search',
-                            description:
-                                'Instantly browse available medicines near you without creating an account.',
-                          ),
-                          _FeatureCard(
-                            icon: Icons.access_time,
-                            color: Colors.green,
-                            title: 'Expiry Alerts',
-                            description:
-                                'Donors receive notifications before medicines expire.',
-                          ),
-                          _FeatureCard(
-                            icon: Icons.verified_user,
-                            color: Colors.purple,
-                            title: 'Verified Safety',
-                            description:
-                                'All donations are verified by admins for safety.',
-                          ),
-                        ],
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-
-              const SizedBox(height: 80),
-
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 24),
-                child: Wrap(
-                  spacing: 24,
-                  runSpacing: 24,
-                  alignment: WrapAlignment.center,
-                  children: const [
-                    _StatItem(value: '5,000+', label: 'Donations Made'),
-                    _StatItem(value: '1,200+', label: 'Lives Impacted'),
-                    _StatItem(value: '850+', label: 'Verified Donors'),
-                    _StatItem(value: '24/7', label: 'Active Support'),
-                  ],
-                ),
-              ),
-
-              const SizedBox(height: 100),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
+  State<LandingPage> createState() => _LandingPageState();
 }
 
-//SMALL WIDGETS
+class _LandingPageState extends State<LandingPage> {
+  final _searchController = TextEditingController();
 
-Widget _blurCircle({required double size, required Color color}) {
-  return Container(
-    width: size,
-    height: size,
-    decoration: BoxDecoration(shape: BoxShape.circle, color: color),
-  );
-}
-
-class _PulseDot extends StatefulWidget {
-  const _PulseDot();
-
-  @override
-  State<_PulseDot> createState() => _PulseDotState();
-}
-
-class _PulseDotState extends State<_PulseDot>
-    with SingleTickerProviderStateMixin {
-  late AnimationController controller;
-
-  @override
-  void initState() {
-    controller = AnimationController(
-      vsync: this,
-      duration: const Duration(seconds: 1),
-    )..repeat(reverse: true);
-    super.initState();
-  }
+  // Mock data for featured meds to match the React design
+  final List<Map<String, dynamic>> _featuredMeds = [
+    {
+      'name': 'Paracetamol',
+      'qty': '12 tabs',
+      'dist': '0.4km',
+      'color': Colors.teal,
+    },
+    {
+      'name': 'Ibuprofen',
+      'qty': '500mg',
+      'dist': '1.2km',
+      'color': Colors.blue,
+    },
+    {
+      'name': 'Vitamin C',
+      'qty': '20 tabs',
+      'dist': '2.5km',
+      'color': Colors.amber,
+    },
+  ];
 
   @override
   void dispose() {
-    controller.dispose();
+    _searchController.dispose();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
-    return ScaleTransition(
-      scale: Tween(begin: 0.7, end: 1.1).animate(controller),
-      child: const CircleAvatar(radius: 4, backgroundColor: Colors.blue),
-    );
-  }
-}
+    return Scaffold(
+      backgroundColor: Colors.white,
+      body: SingleChildScrollView(
+        child: Column(
+          children: [
+            // Hero Section with Overlapping Search
+            Stack(
+              clipBehavior: Clip.none,
+              children: [
+                // Teal Background
+                Container(
+                  height: MediaQuery.of(context).size.height * 0.45,
+                  width: double.infinity,
+                  decoration: const BoxDecoration(
+                    color: Colors.teal,
+                    borderRadius: BorderRadius.vertical(
+                      bottom: Radius.circular(50),
+                    ),
+                  ),
+                  child: Stack(
+                    children: [
+                      // Decorative Circles
+                      Positioned(
+                        top: -40,
+                        right: -40,
+                        child: Container(
+                          width: 200,
+                          height: 200,
+                          decoration: BoxDecoration(
+                            color: Colors.teal.shade400.withOpacity(0.5),
+                            shape: BoxShape.circle,
+                          ),
+                        ),
+                      ),
+                      Positioned(
+                        top: 80,
+                        left: -40,
+                        child: Container(
+                          width: 150,
+                          height: 150,
+                          decoration: BoxDecoration(
+                            color: Colors.tealAccent.withOpacity(0.2),
+                            shape: BoxShape.circle,
+                          ),
+                        ),
+                      ),
 
-class _FeatureCard extends StatelessWidget {
-  final IconData icon;
-  final Color color;
-  final String title;
-  final String description;
+                      // Content
+                      Padding(
+                        padding: const EdgeInsets.fromLTRB(24, 60, 24, 40),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            // Header
+                            Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                              children: [
+                                Row(
+                                  children: [
+                                    Container(
+                                      padding: const EdgeInsets.all(8),
+                                      decoration: BoxDecoration(
+                                        color: Colors.white,
+                                        borderRadius: BorderRadius.circular(12),
+                                      ),
+                                      child: const Icon(
+                                        Icons.medical_services_outlined,
+                                        color: Colors.teal,
+                                        size: 20,
+                                      ),
+                                    ),
+                                    const SizedBox(width: 10),
+                                    const Text(
+                                      'MediShare',
+                                      style: TextStyle(
+                                        color: Colors.white,
+                                        fontWeight: FontWeight.bold,
+                                        fontSize: 20,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 10),
+                            // Hero Text
+                            RichText(
+                              text: TextSpan(
+                                style: const TextStyle(
+                                  fontSize: 30,
+                                  fontWeight: FontWeight.w900,
+                                  color: Colors.white,
+                                  height: 1.1,
+                                ),
+                                children: [
+                                  const TextSpan(text: 'Save Lives,\n'),
+                                  TextSpan(
+                                    text: 'Share',
+                                    style: TextStyle(
+                                      color: Colors.teal.shade100,
+                                      decoration: TextDecoration.underline,
+                                      decorationColor: Colors.teal.shade200,
+                                    ),
+                                  ),
+                                  const TextSpan(text: ' Health.'),
+                                ],
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
 
-  const _FeatureCard({
-    required this.icon,
-    required this.color,
-    required this.title,
-    required this.description,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      width: 300,
-      padding: const EdgeInsets.all(24),
-      decoration: BoxDecoration(
-        color: Colors.grey.shade50,
-        borderRadius: BorderRadius.circular(24),
-        border: Border.all(color: Colors.grey.shade200),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Container(
-            padding: const EdgeInsets.all(14),
-            decoration: BoxDecoration(
-              color: color.withOpacity(0.15),
-              borderRadius: BorderRadius.circular(14),
+                // Floating Search Bar
+              ],
             ),
-            child: Icon(icon, color: color, size: 30),
-          ),
-          const SizedBox(height: 20),
-          Text(
-            title,
-            style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
-          ),
-          const SizedBox(height: 12),
-          Text(
-            description,
-            style: const TextStyle(color: Colors.black54, height: 1.5),
-          ),
-        ],
+
+            const SizedBox(height: 50), // Spacing for floating search bar
+            // Featured / Nearby Section
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 24),
+              child: Column(
+                children: [
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    crossAxisAlignment: CrossAxisAlignment.end,
+                    children: [
+                      Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Text(
+                            'Available ',
+                            style: TextStyle(
+                              fontSize: 20,
+                              fontWeight: FontWeight.bold,
+                              color: Colors.black87,
+                            ),
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            'LIVE UPDATES',
+                            style: TextStyle(
+                              fontSize: 10,
+                              fontWeight: FontWeight.bold,
+                              color: Colors.grey.shade400,
+                              letterSpacing: 1.2,
+                            ),
+                          ),
+                        ],
+                      ),
+                      TextButton(
+                        onPressed: () =>
+                            Navigator.pushNamed(context, '/browse'),
+                        child: const Text(
+                          'Search Medicines',
+                          style: TextStyle(
+                            color: Colors.teal,
+                            fontWeight: FontWeight.bold,
+                            fontSize: 12,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 16),
+                  SizedBox(
+                    height: 160,
+                    child: ListView.separated(
+                      scrollDirection: Axis.horizontal,
+                      itemCount: _featuredMeds.length,
+                      separatorBuilder: (_, __) => const SizedBox(width: 16),
+                      itemBuilder: (context, index) {
+                        final med = _featuredMeds[index];
+                        return Container(
+                          width: 140,
+                          padding: const EdgeInsets.all(16),
+                          decoration: BoxDecoration(
+                            color: Colors.white,
+                            borderRadius: BorderRadius.circular(24),
+                            border: Border.all(color: Colors.grey.shade100),
+                            boxShadow: [
+                              BoxShadow(
+                                color: Colors.grey.shade100,
+                                blurRadius: 10,
+                                offset: const Offset(0, 4),
+                              ),
+                            ],
+                          ),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Container(
+                                width: 40,
+                                height: 40,
+                                decoration: BoxDecoration(
+                                  color: med['color'] as Color,
+                                  borderRadius: BorderRadius.circular(12),
+                                  boxShadow: [
+                                    BoxShadow(
+                                      color: (med['color'] as Color)
+                                          .withOpacity(0.4),
+                                      blurRadius: 8,
+                                      offset: const Offset(0, 4),
+                                    ),
+                                  ],
+                                ),
+                                child: const Icon(
+                                  Icons.medication,
+                                  color: Colors.white,
+                                  size: 20,
+                                ),
+                              ),
+                              const Spacer(),
+                              Text(
+                                med['name'],
+                                style: const TextStyle(
+                                  fontWeight: FontWeight.bold,
+                                  fontSize: 14,
+                                ),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                              Text(
+                                med['qty'],
+                                style: TextStyle(
+                                  color: Colors.grey.shade400,
+                                  fontSize: 10,
+                                  fontWeight: FontWeight.w500,
+                                ),
+                              ),
+                              const SizedBox(height: 8),
+                              Row(
+                                children: [
+                                  const Icon(
+                                    Icons.location_on,
+                                    size: 10,
+                                    color: Colors.teal,
+                                  ),
+                                  const SizedBox(width: 4),
+                                  Text(
+                                    med['dist'],
+                                    style: const TextStyle(
+                                      fontSize: 10,
+                                      fontWeight: FontWeight.bold,
+                                      color: Colors.grey,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ],
+                          ),
+                        );
+                      },
+                    ),
+                  ),
+                ],
+              ),
+            ),
+
+            const SizedBox(height: 40),
+
+            // How It Works
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 24),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    'How It Works',
+                    style: TextStyle(
+                      fontSize: 20,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.black87,
+                    ),
+                  ),
+                  const SizedBox(height: 24),
+                  _buildStep(
+                    icon: Icons.camera_alt,
+                    color: Colors.teal,
+                    title: '1. Snap & Donate',
+                    description:
+                        'Take a photo of your unused medicine and upload its details.',
+                  ),
+                  const SizedBox(height: 20),
+                  _buildStep(
+                    icon: Icons.volunteer_activism,
+                    color: Colors.blue,
+                    title: '2. Someone Requests',
+                    description:
+                        'A nearby person in need finds and requests the medication.',
+                  ),
+                  const SizedBox(height: 20),
+                  _buildStep(
+                    icon: Icons.handshake,
+                    color: Colors.green,
+                    title: '3. Safe Handover',
+                    description:
+                        'Coordinate a safe pickup and make a positive impact.',
+                  ),
+                ],
+              ),
+            ),
+
+            const SizedBox(height: 40),
+
+            const SizedBox(height: 40),
+          ],
+        ),
       ),
     );
   }
-}
 
-class _StatItem extends StatelessWidget {
-  final String value;
-  final String label;
-
-  const _StatItem({required this.value, required this.label});
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(
+  Widget _buildStep({
+    required IconData icon,
+    required Color color,
+    required String title,
+    required String description,
+  }) {
+    return Row(
       children: [
-        Text(
-          value,
-          style: const TextStyle(
-            fontSize: 34,
-            fontWeight: FontWeight.w900,
-            color: Colors.blue,
+        Container(
+          width: 48,
+          height: 48,
+          decoration: BoxDecoration(
+            color: color.withOpacity(0.1),
+            borderRadius: BorderRadius.circular(16),
           ),
+          child: Icon(icon, color: color, size: 24),
         ),
-        const SizedBox(height: 6),
-        Text(
-          label.toUpperCase(),
-          style: const TextStyle(
-            fontSize: 11,
-            fontWeight: FontWeight.bold,
-            letterSpacing: 1.4,
-            color: Colors.black54,
+        const SizedBox(width: 16),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                title,
+                style: const TextStyle(
+                  fontWeight: FontWeight.bold,
+                  fontSize: 14,
+                  color: Colors.black87,
+                ),
+              ),
+              const SizedBox(height: 4),
+              Text(
+                description,
+                style: const TextStyle(
+                  fontSize: 12,
+                  color: Colors.grey,
+                  height: 1.4,
+                ),
+              ),
+            ],
           ),
         ),
       ],

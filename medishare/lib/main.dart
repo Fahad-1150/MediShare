@@ -5,10 +5,14 @@ import 'pages/landing_page.dart';
 import 'pages/login_page.dart';
 import 'pages/signup_page.dart';
 import 'pages/list.dart';
+import 'pages/donate_page.dart';
+import 'pages/request_page.dart';
+import 'pages/admin_panel.dart';
+import 'pages/user_panel.dart';
 import 'widgets/app_navbar.dart';
 
 void main() {
-  //  AuthState provider
+  // Initialize AuthState provider
   runApp(
     ChangeNotifierProvider(
       create: (_) => AuthState(),
@@ -16,7 +20,6 @@ void main() {
     ),
   );
 }
-//main app run test repo
 
 // Main App
 class MediShareApp extends StatelessWidget {
@@ -29,11 +32,21 @@ class MediShareApp extends StatelessWidget {
       title: 'MediShare',
       theme: ThemeData(useMaterial3: true, colorSchemeSeed: Colors.blue),
       home: const MainShell(),
+      routes: {
+        '/home': (_) => const MainShell(),
+        '/login': (_) => const LoginPage(),
+        '/signup': (_) => const SignupPage(),
+        '/donate': (_) => const DonatePage(),
+        '/request': (_) => const RequestPage(),
+        '/browse': (_) => const MedicineListPage(),
+        '/admin': (_) => const AdminPanel(),
+        '/profile': (_) => const UserPanel(),
+      },
     );
   }
 }
 
-// Main Navigation
+// Main Navigation Shell
 class MainShell extends StatefulWidget {
   const MainShell({super.key});
 
@@ -42,17 +55,25 @@ class MainShell extends StatefulWidget {
 }
 
 class _MainShellState extends State<MainShell> {
-  int index = 0;
+  int _selectedIndex = 0;
 
-  final pages = const [
-    LandingPage(),
-    MedicineListPage(),
-    LoginPage(),
-    SignupPage(),
-  ];
+  late List<Widget> _pages;
+
+  @override
+  void initState() {
+    super.initState();
+    _pages = [
+      const LandingPage(),
+      const MedicineListPage(),
+      const DonatePage(),
+      const RequestPage(),
+    ];
+  }
 
   @override
   Widget build(BuildContext context) {
+    final auth = context.watch<AuthState>();
+
     return Scaffold(
       // App bar
       appBar: const PreferredSize(
@@ -61,18 +82,37 @@ class _MainShellState extends State<MainShell> {
       ),
 
       // Page content
-      body: pages[index],
+      body: _pages[_selectedIndex],
 
       // Bottom navigation
       bottomNavigationBar: NavigationBar(
-        selectedIndex: index,
-        onDestinationSelected: (i) => setState(() => index = i),
-        destinations: const [
-          NavigationDestination(icon: Icon(Icons.home), label: 'Home'),
-          NavigationDestination(icon: Icon(Icons.search), label: 'Search'),
-          NavigationDestination(icon: Icon(Icons.login), label: 'Sign in'),
+        selectedIndex: _selectedIndex,
+        onDestinationSelected: (i) {
+          setState(() => _selectedIndex = i);
+        },
+        destinations: [
+          const NavigationDestination(icon: Icon(Icons.home), label: 'Home'),
+          const NavigationDestination(icon: Icon(Icons.list), label: 'Browse'),
+          NavigationDestination(
+            icon: auth.isLoggedIn
+                ? const Icon(Icons.favorite)
+                : const Icon(Icons.favorite_outline),
+            label: 'Donate',
+          ),
         ],
       ),
+
+      // Floating action button for admin
+      floatingActionButton: auth.isAdmin
+          ? FloatingActionButton.extended(
+              onPressed: () {
+                Navigator.pushNamed(context, '/admin');
+              },
+              icon: const Icon(Icons.admin_panel_settings),
+              label: const Text('Admin'),
+              backgroundColor: Colors.red,
+            )
+          : null,
     );
   }
 }
