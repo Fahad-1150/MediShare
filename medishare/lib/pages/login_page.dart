@@ -39,11 +39,11 @@ class _LoginPageState extends State<LoginPage> {
         ),
       );
 
-      // ✅ ADMIN CHECK
-      if (email == 'nfahad066@gmail.com') {
+      // Redirect based on role
+      if (auth.isAdmin) {
         Navigator.pushReplacementNamed(context, '/admin');
       } else {
-        // ✅ NORMAL USER DASHBOARD
+        // NORMAL USER DASHBOARD
         Navigator.pushReplacementNamed(context, '/profile');
       }
     } else {

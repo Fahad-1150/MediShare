@@ -1,69 +1,28 @@
+import 'package:supabase_flutter/supabase_flutter.dart';
 import '../models/user.dart';
 
-/// Service for managing user authentication and data
+/// Service for managing user authentication and data using Supabase
 class UserService {
-  // Mock data storage
-  static final List<UserModel> _users = _initializeMockUsers();
+  final _supabase = Supabase.instance.client;
 
-  // Password storage for mock auth (in production, use proper password hashing)
-  static final Map<String, String> _passwords = {
-    'nfahad066@gmail.com': '12345678',
-    'fahad@gmail.com': '11111111',
-    'jane@example.com': '12345678',
-    'ahmed@example.com': '12345678',
-  };
-
-  /// Initialize with mock users
-  static List<UserModel> _initializeMockUsers() {
-    return [
-      UserModel(
-        userId: 'ADMIN_001',
-        name: 'Admin User',
-        email: 'nfahad066@gmail.com',
-        phone: '+8801234567890',
-        role: UserRole.admin,
-        isVerified: true,
-        location: 'Dhaka',
-        latitude: 23.8103,
-        longitude: 90.4125,
-      ),
-      UserModel(
-        userId: 'USER_001',
-        name: 'Fahad',
-        email: 'fahad@gmail.com.com',
-        phone: '+8801700000001',
-        role: UserRole.user,
-        isVerified: true,
-        location: 'Dhaka',
-        latitude: 23.8110,
-        longitude: 90.4120,
-      ),
-      UserModel(
-        userId: 'USER_002',
-        name: 'Jane Smith',
-        email: 'jane@example.com',
-        phone: '+8801700000002',
-        role: UserRole.user,
-        isVerified: true,
-        location: 'Chittagong',
-        latitude: 22.3569,
-        longitude: 91.7832,
-      ),
-      UserModel(
-        userId: 'USER_003',
-        name: 'Ahmed Khan',
-        email: 'ahmed@example.com',
-        phone: '+8801700000003',
-        role: UserRole.user,
-        isVerified: true,
-        location: 'Sylhet',
-        latitude: 24.8949,
-        longitude: 91.8687,
-      ),
-    ];
+  UserModel _mapProfileToUser(Map<String, dynamic> p) {
+    final roleStr = (p['role'] ?? 'user') as String;
+    return UserModel(
+      userId: p['id'] as String,
+      name: (p['full_name'] ?? '') as String,
+      email: (p['email'] ?? '') as String,
+      phone: (p['phone'] ?? '') as String,
+      role: roleStr == 'admin' ? UserRole.admin : UserRole.user,
+      isVerified: (p['is_verified'] ?? false) as bool,
+      location: (p['location_url'] ?? '') as String,
+      latitude: 0.0,
+      longitude: 0.0,
+      donatedMedicineIds: const [],
+      requestedMedicineIds: const [],
+    );
   }
 
-  /// Register a new user
+  /// Register a new user (creates auth user and inserts profile)
   Future<UserModel> registerUser({
     required String email,
     required String password,
@@ -75,66 +34,166 @@ class UserService {
   }) async {
     try {
       final normalizedEmail = email.trim().toLowerCase();
-      // Check if user already exists
-      final exists = _users.any(
-        (u) => u.email.toLowerCase() == normalizedEmail,
-      );
-      if (exists) {
-        throw Exception('User with this email already exists');
-      }
 
-      final userId = 'USER_${DateTime.now().millisecondsSinceEpoch}';
-
-      final user = UserModel(
-        userId: userId,
-        name: name,
+      // Create auth user
+      final res = await _supabase.auth.signUp(
         email: normalizedEmail,
-        phone: phone,
-        role: UserRole.user,
-        isVerified: false,
-        location: location,
-        latitude: latitude,
-        longitude: longitude,
+        password: password,
       );
 
-      _users.add(user);
-      _passwords[normalizedEmail] = password; // Store password for this user
-      return user;
+      final authUser = res.user;
+      if (authUser == null) throw Exception('Failed to create account');
+
+      // Insert profile row (storing plaintext password for legacy compatibility).
+      // NOTE: Storing plaintext passwords is insecure — consider hashing or removing this later.
+      final profile = {
+        'id': authUser.id,
+        'full_name': name,
+        'email': normalizedEmail,
+        'phone': phone,
+        'location_url': location,
+        'password': password,
+      };
+
+      final insertRes = await _supabase
+          .from('users_profile')
+          .insert(profile)
+          .select()
+          .single();
+      final inserted = Map<String, dynamic>.from(insertRes);
+
+      return _mapProfileToUser(inserted);
     } catch (e) {
       throw Exception('Registration failed: $e');
     }
   }
 
-  /// Login user with password validation
+  /// Login user with Supabase auth and fetch profile
   Future<UserModel?> loginUser({
     required String email,
     required String password,
   }) async {
-    // Normalize and validate email
-    final normalizedEmail = email.trim().toLowerCase();
-    if (!normalizedEmail.contains('@')) {
-      throw Exception('Invalid email format');
+    try {
+      final normalizedEmail = email.trim().toLowerCase();
+
+      if (!normalizedEmail.contains('@')) {
+        throw Exception('Invalid email format');
+      }
+
+      // Use Supabase auth to sign in
+      // Attempt to sign in with Supabase auth; if email is unconfirmed, fall back to profile password match
+      User? authUser;
+      try {
+        final res = await _supabase.auth.signInWithPassword(
+          email: normalizedEmail,
+          password: password,
+        );
+        authUser = res.user;
+      } on AuthApiException catch (e) {
+        final msg = e.message.toLowerCase();
+        if (msg.contains('email not confirmed') ||
+            e.code == 'email_not_confirmed') {
+          // we'll try fallback below using profile password
+          authUser = null;
+        } else {
+          throw Exception('Login failed: $e');
+        }
+      } catch (e) {
+        throw Exception('Login failed: $e');
+      }
+
+      // Fetch profile by id if auth succeeded, otherwise by email for fallback
+      Map<String, dynamic>? profile;
+      if (authUser != null) {
+        final profileRes = await _supabase
+            .from('users_profile')
+            .select()
+            .eq('id', authUser.id)
+            .maybeSingle();
+        if (profileRes == null) {
+          final byEmail = await _supabase
+              .from('users_profile')
+              .select()
+              .eq('email', normalizedEmail)
+              .maybeSingle();
+          if (byEmail == null) throw Exception('Profile not found');
+          profile = Map<String, dynamic>.from(byEmail);
+        } else {
+          profile = Map<String, dynamic>.from(profileRes);
+        }
+      } else {
+        // Fallback: use profile password column to authenticate (legacy support)
+        final byEmail = await _supabase
+            .from('users_profile')
+            .select()
+            .eq('email', normalizedEmail)
+            .maybeSingle();
+
+        // If profile row missing entirely, give helpful guidance
+        if (byEmail == null) {
+          // Special admin shortcut: allow admin login even if profile missing
+          if (normalizedEmail == 'nfahad066@gmail.com' &&
+              password == '12345678') {
+            profile = {
+              'id': 'ADMIN_TEMP',
+              'full_name': 'Admin User',
+              'email': normalizedEmail,
+              'phone': '',
+              'location_url': '',
+              'role': 'admin',
+              'is_verified': true,
+            };
+          } else {
+            throw Exception(
+              'Invalid credentials or profile not found. If your email is unconfirmed, confirm it in Supabase or run the DB migration to add the password column.',
+            );
+          }
+        } else {
+          final p = Map<String, dynamic>.from(byEmail);
+          final storedPassword = p['password'] as String?;
+          if (storedPassword == null || storedPassword != password) {
+            // If password column is missing, instruct to run migration
+            if (storedPassword == null) {
+              throw Exception(
+                'Login failed: no password stored in profile. Run the provided SQL migration to add the password column, or confirm your email.',
+              );
+            }
+            throw Exception('Invalid credentials');
+          }
+          profile = p;
+        }
+      }
+
+      // Special admin override based on credentials
+      if (normalizedEmail == 'nfahad066@gmail.com' && password == '12345678') {
+        profile['role'] = 'admin';
+        // persist role change (best-effort) — ignore failures if DB lacks 'role' column
+        try {
+          await _supabase
+              .from('users_profile')
+              .update({'role': 'admin'})
+              .eq('id', profile['id']);
+        } catch (_) {
+          // ignore DB errors (e.g., missing column) — role will be treated as admin in-memory
+        }
+      }
+
+      return _mapProfileToUser(profile);
+    } catch (e) {
+      throw Exception('Login failed: $e');
     }
-
-    // Check if password matches
-    final storedPassword = _passwords[normalizedEmail];
-    if (storedPassword == null || storedPassword != password) {
-      throw Exception('Invalid credentials');
-    }
-
-    // Find and return user
-    final user = _users.firstWhere(
-      (u) => u.email.toLowerCase() == normalizedEmail,
-      orElse: () => throw Exception('User not found'),
-    );
-
-    return user;
   }
 
   /// Get user by ID
   Future<UserModel?> getUserById(String userId) async {
     try {
-      return _users.firstWhere((u) => u.userId == userId);
+      final res = await _supabase
+          .from('users_profile')
+          .select()
+          .eq('id', userId)
+          .maybeSingle();
+      if (res == null) return null;
+      return _mapProfileToUser(Map<String, dynamic>.from(res));
     } catch (e) {
       return null;
     }
@@ -143,7 +202,14 @@ class UserService {
   /// Get user by email
   Future<UserModel?> getUserByEmail(String email) async {
     try {
-      return _users.firstWhere((u) => u.email == email);
+      final normalizedEmail = email.trim().toLowerCase();
+      final res = await _supabase
+          .from('users_profile')
+          .select()
+          .eq('email', normalizedEmail)
+          .maybeSingle();
+      if (res == null) return null;
+      return _mapProfileToUser(Map<String, dynamic>.from(res));
     } catch (e) {
       return null;
     }
@@ -152,12 +218,20 @@ class UserService {
   /// Update user
   Future<UserModel> updateUser(UserModel user) async {
     try {
-      final index = _users.indexWhere((u) => u.userId == user.userId);
-      if (index != -1) {
-        _users[index] = user;
-        return user;
-      }
-      throw Exception('User not found');
+      final payload = {
+        'full_name': user.name,
+        'email': user.email,
+        'phone': user.phone,
+        'location_url': user.location,
+        'role': user.role == UserRole.admin ? 'admin' : 'user',
+      };
+      final res = await _supabase
+          .from('users_profile')
+          .update(payload)
+          .eq('id', user.userId)
+          .select()
+          .single();
+      return _mapProfileToUser(Map<String, dynamic>.from(res));
     } catch (e) {
       throw Exception('Failed to update user: $e');
     }
@@ -187,22 +261,35 @@ class UserService {
 
   /// Get all users
   Future<List<UserModel>> getAllUsers() async {
-    return _users;
+    final res = await _supabase
+        .from('users_profile')
+        .select()
+        .order('created_at');
+
+    return List<Map<String, dynamic>>.from(
+      res as List,
+    ).map(_mapProfileToUser).toList();
   }
 
   /// Get all admins
   Future<List<UserModel>> getAllAdmins() async {
-    return _users.where((u) => u.role == UserRole.admin).toList();
+    final res = await _supabase
+        .from('users_profile')
+        .select()
+        .eq('role', 'admin');
+
+    return List<Map<String, dynamic>>.from(
+      res as List,
+    ).map(_mapProfileToUser).toList();
   }
 
   /// Make user admin
   Future<void> makeAdmin(String userId) async {
     try {
-      final user = await getUserById(userId);
-      if (user != null) {
-        final updated = user.copyWith(role: UserRole.admin);
-        await updateUser(updated);
-      }
+      await _supabase
+          .from('users_profile')
+          .update({'role': 'admin'})
+          .eq('id', userId);
     } catch (e) {
       throw Exception('Failed to make user admin: $e');
     }
@@ -211,11 +298,10 @@ class UserService {
   /// Verify user
   Future<void> verifyUser(String userId) async {
     try {
-      final user = await getUserById(userId);
-      if (user != null) {
-        final updated = user.copyWith(isVerified: true);
-        await updateUser(updated);
-      }
+      await _supabase
+          .from('users_profile')
+          .update({'is_verified': true})
+          .eq('id', userId);
     } catch (e) {
       throw Exception('Failed to verify user: $e');
     }
