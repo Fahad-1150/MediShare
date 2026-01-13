@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:medishare/services/donation_service.dart';
 
 class LandingPage extends StatefulWidget {
   const LandingPage({super.key});
@@ -9,28 +10,47 @@ class LandingPage extends StatefulWidget {
 
 class _LandingPageState extends State<LandingPage> {
   final _searchController = TextEditingController();
+  final DonationService _donationService = DonationService();
 
-  // Mock data for featured meds to match the React design
-  final List<Map<String, dynamic>> _featuredMeds = [
-    {
-      'name': 'Paracetamol',
-      'qty': '12 tabs',
-      'dist': '0.4km',
-      'color': Colors.teal,
-    },
-    {
-      'name': 'Ibuprofen',
-      'qty': '500mg',
-      'dist': '1.2km',
-      'color': Colors.blue,
-    },
-    {
-      'name': 'Vitamin C',
-      'qty': '20 tabs',
-      'dist': '2.5km',
-      'color': Colors.amber,
-    },
-  ];
+  List<Map<String, dynamic>> _featuredMeds = [];
+  bool _isLoading = true;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _fetchApprovedDonations();
+    });
+  }
+
+  Future<void> _fetchApprovedDonations() async {
+    try {
+      final donations = await _donationService.getApprovedDonations();
+      if (mounted) {
+        setState(() {
+          _featuredMeds = donations
+              .map(
+                (donation) => {
+                  'name': donation.medicineName,
+                  'qty': '${donation.quantity} units',
+                  'dist': donation.donorLocation,
+                  'color': Colors.teal,
+                },
+              )
+              .toList();
+          _isLoading = false;
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+          _featuredMeds = [];
+        });
+      }
+      print('Error fetching donations: $e');
+    }
+  }
 
   @override
   void dispose() {
@@ -209,93 +229,112 @@ class _LandingPageState extends State<LandingPage> {
                   const SizedBox(height: 16),
                   SizedBox(
                     height: 160,
-                    child: ListView.separated(
-                      scrollDirection: Axis.horizontal,
-                      itemCount: _featuredMeds.length,
-                      separatorBuilder: (_, __) => const SizedBox(width: 16),
-                      itemBuilder: (context, index) {
-                        final med = _featuredMeds[index];
-                        return Container(
-                          width: 140,
-                          padding: const EdgeInsets.all(16),
-                          decoration: BoxDecoration(
-                            color: Colors.white,
-                            borderRadius: BorderRadius.circular(24),
-                            border: Border.all(color: Colors.grey.shade100),
-                            boxShadow: [
-                              BoxShadow(
-                                color: Colors.grey.shade100,
-                                blurRadius: 10,
-                                offset: const Offset(0, 4),
+                    child: _isLoading
+                        ? const Center(
+                            child: CircularProgressIndicator(
+                              color: Colors.teal,
+                            ),
+                          )
+                        : _featuredMeds.isEmpty
+                        ? Center(
+                            child: Text(
+                              'No medicines available',
+                              style: TextStyle(
+                                color: Colors.grey.shade400,
+                                fontSize: 14,
                               ),
-                            ],
-                          ),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Container(
-                                width: 40,
-                                height: 40,
+                            ),
+                          )
+                        : ListView.separated(
+                            scrollDirection: Axis.horizontal,
+                            itemCount: _featuredMeds.length,
+                            separatorBuilder: (_, __) =>
+                                const SizedBox(width: 16),
+                            itemBuilder: (context, index) {
+                              final med = _featuredMeds[index];
+                              return Container(
+                                width: 140,
+                                padding: const EdgeInsets.all(16),
                                 decoration: BoxDecoration(
-                                  color: med['color'] as Color,
-                                  borderRadius: BorderRadius.circular(12),
+                                  color: Colors.white,
+                                  borderRadius: BorderRadius.circular(24),
+                                  border: Border.all(
+                                    color: Colors.grey.shade100,
+                                  ),
                                   boxShadow: [
                                     BoxShadow(
-                                      color: (med['color'] as Color)
-                                          .withOpacity(0.4),
-                                      blurRadius: 8,
+                                      color: Colors.grey.shade100,
+                                      blurRadius: 10,
                                       offset: const Offset(0, 4),
                                     ),
                                   ],
                                 ),
-                                child: const Icon(
-                                  Icons.medication,
-                                  color: Colors.white,
-                                  size: 20,
-                                ),
-                              ),
-                              const Spacer(),
-                              Text(
-                                med['name'],
-                                style: const TextStyle(
-                                  fontWeight: FontWeight.bold,
-                                  fontSize: 14,
-                                ),
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                              ),
-                              Text(
-                                med['qty'],
-                                style: TextStyle(
-                                  color: Colors.grey.shade400,
-                                  fontSize: 10,
-                                  fontWeight: FontWeight.w500,
-                                ),
-                              ),
-                              const SizedBox(height: 8),
-                              Row(
-                                children: [
-                                  const Icon(
-                                    Icons.location_on,
-                                    size: 10,
-                                    color: Colors.teal,
-                                  ),
-                                  const SizedBox(width: 4),
-                                  Text(
-                                    med['dist'],
-                                    style: const TextStyle(
-                                      fontSize: 10,
-                                      fontWeight: FontWeight.bold,
-                                      color: Colors.grey,
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Container(
+                                      width: 40,
+                                      height: 40,
+                                      decoration: BoxDecoration(
+                                        color: med['color'] as Color,
+                                        borderRadius: BorderRadius.circular(12),
+                                        boxShadow: [
+                                          BoxShadow(
+                                            color: (med['color'] as Color)
+                                                .withOpacity(0.4),
+                                            blurRadius: 8,
+                                            offset: const Offset(0, 4),
+                                          ),
+                                        ],
+                                      ),
+                                      child: const Icon(
+                                        Icons.medication,
+                                        color: Colors.white,
+                                        size: 20,
+                                      ),
                                     ),
-                                  ),
-                                ],
-                              ),
-                            ],
+                                    const Spacer(),
+                                    Text(
+                                      med['name'],
+                                      style: const TextStyle(
+                                        fontWeight: FontWeight.bold,
+                                        fontSize: 14,
+                                      ),
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                    ),
+                                    Text(
+                                      med['qty'],
+                                      style: TextStyle(
+                                        color: Colors.grey.shade400,
+                                        fontSize: 10,
+                                        fontWeight: FontWeight.w500,
+                                      ),
+                                    ),
+                                    const SizedBox(height: 8),
+                                    Row(
+                                      children: [
+                                        const Icon(
+                                          Icons.location_on,
+                                          size: 10,
+                                          color: Colors.teal,
+                                        ),
+                                        const SizedBox(width: 4),
+                                        Text(
+                                          med['dist'],
+                                          style: const TextStyle(
+                                            fontSize: 10,
+                                            fontWeight: FontWeight.bold,
+                                            color: Colors.grey,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ],
+                                ),
+                              );
+                            },
                           ),
-                        );
-                      },
-                    ),
                   ),
                 ],
               ),

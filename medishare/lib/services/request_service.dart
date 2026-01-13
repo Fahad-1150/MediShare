@@ -1,59 +1,41 @@
 import '../models/request.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import 'dart:math';
 
-/// Service for managing medicine requests
+/// Service for managing medicine requests using Supabase
 class RequestService {
-  // Mock data storage
-  static final List<MedicineRequest> _requests = _initializeMockRequests();
-  static int _idCounter = 1;
+  final _supabase = Supabase.instance.client;
 
-  /// Initialize with mock requests
-  static List<MedicineRequest> _initializeMockRequests() {
-    return [
-      MedicineRequest(
-        requestId: 'REQ_001',
-        requesterId: 'USER_002',
-        medicineName: 'Paracetamol',
-        medicineType: 'Tablet',
-        quantity: 20,
-        requesterLocation: 'Chittagong',
-        latitude: 22.3569,
-        longitude: 91.7832,
-        status: RequestStatus.fulfilled,
-        assignedDonationId: 'DON_001',
-        fulfilledAt: DateTime.now().subtract(const Duration(days: 1)),
-        reason: 'Fever and headache relief',
-      ),
-      MedicineRequest(
-        requestId: 'REQ_002',
-        requesterId: 'USER_003',
-        medicineName: 'Amoxicillin',
-        medicineType: 'Capsule',
-        quantity: 10,
-        requesterLocation: 'Sylhet',
-        latitude: 24.8949,
-        longitude: 91.8687,
-        status: RequestStatus.fulfilled,
-        assignedDonationId: 'DON_002',
-        fulfilledAt: DateTime.now(),
-        reason: 'Bacterial infection treatment',
-      ),
-      MedicineRequest(
-        requestId: 'REQ_003',
-        requesterId: 'USER_001',
-        medicineName: 'Vitamin D',
-        medicineType: 'Tablet',
-        quantity: 30,
-        requesterLocation: 'Dhaka',
-        latitude: 23.8110,
-        longitude: 90.4120,
-        status: RequestStatus.pending,
-        reason: 'Vitamin D deficiency supplement',
-      ),
-    ];
+  /// Map Supabase row to MedicineRequest model
+  MedicineRequest _mapRowToRequest(Map<String, dynamic> row) {
+    return MedicineRequest(
+      requestId: row['id'] as String,
+      requesterId: row['requester_id'] as String,
+      medicineName: row['medicine_name'] as String,
+      medicineType: row['medicine_type'] as String,
+      quantity: row['quantity'] as int,
+      requesterLocation: row['requester_location'] as String,
+      latitude: (row['latitude'] as num?)?.toDouble() ?? 0.0,
+      longitude: (row['longitude'] as num?)?.toDouble() ?? 0.0,
+      reason: row['reason'] as String?,
+      status: _parseStatus(row['status'] as String),
+      assignedDonationId: row['assigned_donation_id'] as String?,
+      createdAt: DateTime.parse(row['created_at'] as String),
+      fulfilledAt: row['fulfilled_at'] != null
+          ? DateTime.parse(row['fulfilled_at'] as String)
+          : null,
+    );
   }
 
-  /// Create a new request
+  /// Parse status string to enum
+  RequestStatus _parseStatus(String status) {
+    return RequestStatus.values.firstWhere(
+      (e) => e.toString().split('.').last == status,
+      orElse: () => RequestStatus.pending,
+    );
+  }
+
+  /// Create a new request in Supabase
   Future<String> createRequest({
     required String requesterId,
     required String medicineName,
@@ -65,52 +47,98 @@ class RequestService {
     String? reason,
   }) async {
     try {
-      final requestId = 'REQ_${_idCounter++}';
+      final requestId = 'REQ_${DateTime.now().millisecondsSinceEpoch}';
 
-      final request = MedicineRequest(
-        requestId: requestId,
-        requesterId: requesterId,
-        medicineName: medicineName,
-        medicineType: medicineType,
-        quantity: quantity,
-        requesterLocation: requesterLocation,
-        latitude: latitude,
-        longitude: longitude,
-        reason: reason,
-        status: RequestStatus.pending,
-      );
+      await _supabase.from('requests').insert({
+        'id': requestId,
+        'requester_id': requesterId,
+        'medicine_name': medicineName,
+        'medicine_type': medicineType,
+        'quantity': quantity,
+        'requester_location': requesterLocation,
+        'latitude': latitude,
+        'longitude': longitude,
+        'reason': reason,
+        'status': 'pending',
+      });
 
-      _requests.add(request);
       return requestId;
     } catch (e) {
       throw Exception('Failed to create request: $e');
     }
   }
 
-  /// Get all requests
+  /// Get all requests from Supabase
   Future<List<MedicineRequest>> getAllRequests() async {
-    return _requests;
+    try {
+      final response = await _supabase
+          .from('requests')
+          .select()
+          .order('created_at', ascending: false);
+
+      return (response as List)
+          .map((row) => _mapRowToRequest(row as Map<String, dynamic>))
+          .toList();
+    } catch (e) {
+      throw Exception('Failed to fetch requests: $e');
+    }
   }
 
   /// Get pending requests (for admin review)
   Future<List<MedicineRequest>> getPendingRequests() async {
-    return _requests.where((r) => r.status == RequestStatus.pending).toList();
+    try {
+      final response = await _supabase
+          .from('requests')
+          .select()
+          .eq('status', 'pending')
+          .order('created_at', ascending: false);
+
+      return (response as List)
+          .map((row) => _mapRowToRequest(row as Map<String, dynamic>))
+          .toList();
+    } catch (e) {
+      throw Exception('Failed to fetch pending requests: $e');
+    }
   }
 
   /// Get requests by requester
   Future<List<MedicineRequest>> getRequestsByRequester(
     String requesterId,
   ) async {
-    return _requests.where((r) => r.requesterId == requesterId).toList();
+    try {
+      final response = await _supabase
+          .from('requests')
+          .select()
+          .eq('requester_id', requesterId)
+          .order('created_at', ascending: false);
+
+      return (response as List)
+          .map((row) => _mapRowToRequest(row as Map<String, dynamic>))
+          .toList();
+    } catch (e) {
+      throw Exception('Failed to fetch requests: $e');
+    }
   }
 
   /// Search requests
   Future<List<MedicineRequest>> searchRequests(String query) async {
-    final lowerQuery = query.toLowerCase();
-    return _requests.where((r) {
-      return r.medicineName.toLowerCase().contains(lowerQuery) ||
-          r.medicineType.toLowerCase().contains(lowerQuery);
-    }).toList();
+    try {
+      final response = await _supabase
+          .from('requests')
+          .select()
+          .order('created_at', ascending: false);
+
+      final lowerQuery = query.toLowerCase();
+      return (response as List)
+          .map((row) => _mapRowToRequest(row as Map<String, dynamic>))
+          .where((r) {
+            return r.medicineName.toLowerCase().contains(lowerQuery) ||
+                r.medicineType.toLowerCase().contains(lowerQuery);
+          })
+          .toList();
+    } catch (e) {
+      throw Exception('Failed to search requests: $e');
+    }
   }
 
   /// Update request status
@@ -118,20 +146,18 @@ class RequestService {
     String requestId,
     RequestStatus status, {
     String? assignedDonationId,
-    String? adminNotes,
   }) async {
     try {
-      final index = _requests.indexWhere((r) => r.requestId == requestId);
-      if (index != -1) {
-        _requests[index] = _requests[index].copyWith(
-          status: status,
-          assignedDonationId: assignedDonationId,
-          adminNotes: adminNotes,
-          fulfilledAt: status == RequestStatus.fulfilled
-              ? DateTime.now()
-              : null,
-        );
-      }
+      final statusStr = status.toString().split('.').last;
+      final updateData = {
+        'status': statusStr,
+        if (assignedDonationId != null)
+          'assigned_donation_id': assignedDonationId,
+        if (status == RequestStatus.fulfilled)
+          'fulfilled_at': DateTime.now().toIso8601String(),
+      };
+
+      await _supabase.from('requests').update(updateData).eq('id', requestId);
     } catch (e) {
       throw Exception('Failed to update request status: $e');
     }
@@ -140,21 +166,16 @@ class RequestService {
   /// Get request by ID
   Future<MedicineRequest?> getRequestById(String requestId) async {
     try {
-      return _requests.firstWhere((r) => r.requestId == requestId);
+      final response = await _supabase
+          .from('requests')
+          .select()
+          .eq('id', requestId)
+          .maybeSingle();
+
+      return response != null ? _mapRowToRequest(response) : null;
     } catch (e) {
       return null;
     }
-  }
-
-  /// Find matching donations for a request
-  Future<List<String>> findMatchingDonations(
-    String medicineName,
-    String medicineType,
-    int quantity,
-  ) async {
-    // This would be used to suggest which donations could fulfill a request
-    // For now, returning empty list - would be implemented with donation service
-    return [];
   }
 
   /// Get nearby requests (for donors)
@@ -163,18 +184,29 @@ class RequestService {
     double longitude, {
     double radiusKm = 25,
   }) async {
-    return _requests.where((request) {
-      if (request.status != RequestStatus.pending) return false;
+    try {
+      final response = await _supabase
+          .from('requests')
+          .select()
+          .eq('status', 'pending')
+          .order('created_at', ascending: false);
 
-      final distance = _calculateDistance(
-        latitude,
-        longitude,
-        request.latitude,
-        request.longitude,
-      );
+      final requests = (response as List)
+          .map((row) => _mapRowToRequest(row as Map<String, dynamic>))
+          .toList();
 
-      return distance <= radiusKm;
-    }).toList();
+      return requests.where((request) {
+        final distance = _calculateDistance(
+          latitude,
+          longitude,
+          request.latitude,
+          request.longitude,
+        );
+        return distance <= radiusKm;
+      }).toList();
+    } catch (e) {
+      throw Exception('Failed to fetch nearby requests: $e');
+    }
   }
 
   /// Calculate distance between two coordinates (Haversine formula)

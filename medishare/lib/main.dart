@@ -11,6 +11,9 @@ import 'pages/donate_page.dart';
 import 'pages/request_page.dart';
 import 'pages/admin_panel.dart';
 import 'pages/user_panel.dart';
+import 'pages/my_medicines_page.dart';
+import 'pages/medicine_details_page.dart';
+import 'models/donation.dart';
 import 'widgets/app_navbar.dart';
 
 Future<void> main() async {
@@ -38,7 +41,10 @@ class MediShareApp extends StatelessWidget {
     return MaterialApp(
       debugShowCheckedModeBanner: false,
       title: 'MediShare',
-      theme: ThemeData(useMaterial3: true, colorSchemeSeed: Colors.blue),
+      theme: ThemeData(
+        useMaterial3: true,
+        colorSchemeSeed: const Color.fromARGB(255, 4, 113, 78),
+      ),
       home: const MainShell(),
       routes: {
         '/home': (_) => const MainShell(),
@@ -49,6 +55,16 @@ class MediShareApp extends StatelessWidget {
         '/browse': (_) => const MedicineListPage(),
         '/admin': (_) => const AdminPanel(),
         '/profile': (_) => const UserPanel(),
+        '/my-medicines': (_) => const MyMedicinesPage(),
+      },
+      onGenerateRoute: (settings) {
+        if (settings.name == '/medicine-details') {
+          final donation = settings.arguments as Donation;
+          return MaterialPageRoute(
+            builder: (context) => MedicineDetailsPage(donation: donation),
+          );
+        }
+        return null;
       },
     );
   }

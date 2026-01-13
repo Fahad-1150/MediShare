@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../state/auth_state.dart';
 import '../services/donation_service.dart';
+import '../services/report_service.dart';
 import '../models/donation.dart';
 
 class RequestPage extends StatefulWidget {
@@ -13,6 +14,7 @@ class RequestPage extends StatefulWidget {
 
 class _RequestPageState extends State<RequestPage> {
   final DonationService _donationService = DonationService();
+  final ReportService _reportService = ReportService();
 
   String _searchTerm = '';
   String _filterType = 'All';
@@ -131,8 +133,8 @@ class _RequestPageState extends State<RequestPage> {
       builder: (context) => _ReportDialog(
         donation: donation,
         reporterId: auth.user!.userId,
-        onReport: () {
-          Navigator.pop(context);
+        reportService: _reportService,
+        onReport: (reason, description) {
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(
               content: Text('Report submitted. Admin will review it.'),
@@ -194,7 +196,10 @@ class _RequestPageState extends State<RequestPage> {
                 ),
                 focusedBorder: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(12),
-                  borderSide: const BorderSide(color: Colors.blue, width: 2),
+                  borderSide: const BorderSide(
+                    color: Color.fromARGB(255, 4, 113, 78),
+                    width: 2,
+                  ),
                 ),
               ),
             ),
@@ -305,13 +310,13 @@ class _DonationCard extends StatelessWidget {
               borderRadius: const BorderRadius.vertical(
                 top: Radius.circular(20),
               ),
-              color: Colors.blue.shade50,
+              color: const Color.fromARGB(255, 4, 113, 78).withOpacity(0.1),
             ),
             child: Center(
               child: Icon(
                 Icons.medication,
                 size: 40,
-                color: Colors.blue.shade300,
+                color: const Color.fromARGB(255, 4, 113, 78),
               ),
             ),
           ),
@@ -363,7 +368,12 @@ class _DonationCard extends StatelessWidget {
                           onPressed: onClaim,
                           style: ElevatedButton.styleFrom(
                             padding: const EdgeInsets.symmetric(vertical: 8),
-                            backgroundColor: Colors.blue,
+                            backgroundColor: const Color.fromARGB(
+                              255,
+                              4,
+                              113,
+                              78,
+                            ),
                           ),
                           child: const Text(
                             'Claim',
@@ -400,12 +410,14 @@ class _DonationCard extends StatelessWidget {
 class _ReportDialog extends StatefulWidget {
   final Donation donation;
   final String reporterId;
-  final VoidCallback onReport;
+  final Function(String reason, String description) onReport;
+  final ReportService reportService;
 
   const _ReportDialog({
     required this.donation,
     required this.reporterId,
     required this.onReport,
+    required this.reportService,
   });
 
   @override
@@ -486,7 +498,29 @@ class _ReportDialogState extends State<_ReportDialog> {
           onPressed: () => Navigator.pop(context),
           child: const Text('Cancel'),
         ),
-        ElevatedButton(onPressed: widget.onReport, child: const Text('Report')),
+        ElevatedButton(
+          onPressed: () async {
+            try {
+              await widget.reportService.createReport(
+                reporterId: widget.reporterId,
+                donationId: widget.donation.donationId,
+                reason: _selectedReason,
+                description: _descriptionController.text,
+              );
+              if (context.mounted) {
+                Navigator.pop(context);
+                widget.onReport(_selectedReason, _descriptionController.text);
+              }
+            } catch (e) {
+              if (context.mounted) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(content: Text('Error submitting report: $e')),
+                );
+              }
+            }
+          },
+          child: const Text('Report'),
+        ),
       ],
     );
   }

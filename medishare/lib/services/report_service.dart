@@ -1,28 +1,40 @@
 import '../models/report.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
-/// Service for managing safety reports
+/// Service for managing safety reports using Supabase
 class ReportService {
-  // Mock data storage
-  static final List<Report> _reports = _initializeMockReports();
-  static int _idCounter = 1;
+  final _supabase = Supabase.instance.client;
 
-  /// Initialize with mock reports
-  static List<Report> _initializeMockReports() {
-    return [
-      Report(
-        reportId: 'RPT_001',
-        reporterId: 'USER_001',
-        donationId: 'DON_005',
-        reason: 'Expired Medicine',
-        description:
-            'The medicine package appears to be expired based on visual inspection',
-        status: ReportStatus.pending,
-        createdAt: DateTime.now().subtract(const Duration(hours: 2)),
-      ),
-    ];
+  /// Map Supabase row to Report model
+  Report _mapRowToReport(Map<String, dynamic> row) {
+    return Report(
+      reportId: row['id'] as String,
+      reporterId: row['reporter_id'] as String,
+      donationId: row['donation_id'] as String,
+      reason: row['reason'] as String,
+      description: row['description'],
+      photoUrls: row['photo_urls'] != null
+          ? List<String>.from(row['photo_urls'] as List)
+          : null,
+      status: _parseStatus(row['status'] as String),
+      adminNotes: row['admin_notes'] as String?,
+      resolution: row['resolution'] as String?,
+      createdAt: DateTime.parse(row['created_at'] as String),
+      resolvedAt: row['resolved_at'] != null
+          ? DateTime.parse(row['resolved_at'] as String)
+          : null,
+    );
   }
 
-  /// Create a new report
+  /// Parse status string to enum
+  ReportStatus _parseStatus(String status) {
+    return ReportStatus.values.firstWhere(
+      (e) => e.toString().split('.').last == status,
+      orElse: () => ReportStatus.pending,
+    );
+  }
+
+  /// Create a new report in Supabase
   Future<String> createReport({
     required String reporterId,
     required String donationId,
@@ -31,43 +43,89 @@ class ReportService {
     List<String>? photoUrls,
   }) async {
     try {
-      final reportId = 'REP_${_idCounter++}';
+      final reportId = 'RPT_${DateTime.now().millisecondsSinceEpoch}';
 
-      final report = Report(
-        reportId: reportId,
-        reporterId: reporterId,
-        donationId: donationId,
-        reason: reason,
-        description: description,
-        photoUrls: photoUrls,
-        status: ReportStatus.pending,
-      );
+      await _supabase.from('reports').insert({
+        'id': reportId,
+        'reporter_id': reporterId,
+        'donation_id': donationId,
+        'reason': reason,
+        'description': description,
+        'photo_urls': photoUrls,
+        'status': 'pending',
+      });
 
-      _reports.add(report);
       return reportId;
     } catch (e) {
       throw Exception('Failed to create report: $e');
     }
   }
 
-  /// Get all reports
+  /// Get all reports from Supabase
   Future<List<Report>> getAllReports() async {
-    return _reports;
+    try {
+      final response = await _supabase
+          .from('reports')
+          .select()
+          .order('created_at', ascending: false);
+
+      return (response as List)
+          .map((row) => _mapRowToReport(row as Map<String, dynamic>))
+          .toList();
+    } catch (e) {
+      throw Exception('Failed to fetch reports: $e');
+    }
   }
 
   /// Get pending reports (for admin review)
   Future<List<Report>> getPendingReports() async {
-    return _reports.where((r) => r.status == ReportStatus.pending).toList();
+    try {
+      final response = await _supabase
+          .from('reports')
+          .select()
+          .eq('status', 'pending')
+          .order('created_at', ascending: false);
+
+      return (response as List)
+          .map((row) => _mapRowToReport(row as Map<String, dynamic>))
+          .toList();
+    } catch (e) {
+      throw Exception('Failed to fetch pending reports: $e');
+    }
   }
 
   /// Get reports by reporter
   Future<List<Report>> getReportsByReporter(String reporterId) async {
-    return _reports.where((r) => r.reporterId == reporterId).toList();
+    try {
+      final response = await _supabase
+          .from('reports')
+          .select()
+          .eq('reporter_id', reporterId)
+          .order('created_at', ascending: false);
+
+      return (response as List)
+          .map((row) => _mapRowToReport(row as Map<String, dynamic>))
+          .toList();
+    } catch (e) {
+      throw Exception('Failed to fetch reports: $e');
+    }
   }
 
   /// Get reports for a donation
   Future<List<Report>> getReportsForDonation(String donationId) async {
-    return _reports.where((r) => r.donationId == donationId).toList();
+    try {
+      final response = await _supabase
+          .from('reports')
+          .select()
+          .eq('donation_id', donationId)
+          .order('created_at', ascending: false);
+
+      return (response as List)
+          .map((row) => _mapRowToReport(row as Map<String, dynamic>))
+          .toList();
+    } catch (e) {
+      throw Exception('Failed to fetch reports: $e');
+    }
   }
 
   /// Update report status
@@ -78,15 +136,16 @@ class ReportService {
     String? resolution,
   }) async {
     try {
-      final index = _reports.indexWhere((r) => r.reportId == reportId);
-      if (index != -1) {
-        _reports[index] = _reports[index].copyWith(
-          status: status,
-          adminNotes: adminNotes,
-          resolution: resolution,
-          resolvedAt: status != ReportStatus.pending ? DateTime.now() : null,
-        );
-      }
+      final statusStr = status.toString().split('.').last;
+      final updateData = {
+        'status': statusStr,
+        if (adminNotes != null) 'admin_notes': adminNotes,
+        if (resolution != null) 'resolution': resolution,
+        if (status != ReportStatus.pending)
+          'resolved_at': DateTime.now().toIso8601String(),
+      };
+
+      await _supabase.from('reports').update(updateData).eq('id', reportId);
     } catch (e) {
       throw Exception('Failed to update report status: $e');
     }
@@ -95,7 +154,13 @@ class ReportService {
   /// Get report by ID
   Future<Report?> getReportById(String reportId) async {
     try {
-      return _reports.firstWhere((r) => r.reportId == reportId);
+      final response = await _supabase
+          .from('reports')
+          .select()
+          .eq('id', reportId)
+          .maybeSingle();
+
+      return response != null ? _mapRowToReport(response) : null;
     } catch (e) {
       return null;
     }
@@ -103,6 +168,16 @@ class ReportService {
 
   /// Count pending reports
   Future<int> getPendingReportCount() async {
-    return _reports.where((r) => r.status == ReportStatus.pending).length;
+    try {
+      final response = await _supabase
+          .from('reports')
+          .select()
+          .eq('status', 'pending')
+          .count(CountOption.exact);
+
+      return response.count;
+    } catch (e) {
+      return 0;
+    }
   }
 }

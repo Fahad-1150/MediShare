@@ -2,9 +2,11 @@
 enum NotificationType {
   donationApproved,
   donationClaimed,
+  donationRejected,
   requestFulfilled,
   expiryWarning,
   reportResolved,
+  reportSubmitted,
 }
 
 /// System Notification model

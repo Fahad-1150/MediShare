@@ -1,89 +1,47 @@
 import '../models/donation.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import 'dart:math';
 
-/// Service for managing medicine donations
-/// In production, this would connect to Firestore
+/// Service for managing medicine donations using Supabase
 class DonationService {
-  // Mock data storage
-  static final List<Donation> _donations = _initializeMockDonations();
-  static int _idCounter = 1;
+  final _supabase = Supabase.instance.client;
 
-  /// Initialize with mock donations
-  static List<Donation> _initializeMockDonations() {
-    return [
-      Donation(
-        donationId: 'DON_001',
-        donorId: 'USER_001',
-        medicineName: 'Paracetamol',
-        medicineType: 'Tablet',
-        quantity: 50,
-        expiryDate: DateTime(2025, 12, 31),
-        donorLocation: 'Dhaka',
-        latitude: 23.8110,
-        longitude: 90.4120,
-        description: 'Unused paracetamol tablets',
-        status: DonationStatus.approved,
-        approvedAt: DateTime.now().subtract(const Duration(days: 2)),
-      ),
-      Donation(
-        donationId: 'DON_002',
-        donorId: 'USER_002',
-        medicineName: 'Amoxicillin',
-        medicineType: 'Capsule',
-        quantity: 30,
-        expiryDate: DateTime(2026, 3, 15),
-        donorLocation: 'Chittagong',
-        latitude: 22.3569,
-        longitude: 91.7832,
-        description: 'Antibiotic capsules',
-        status: DonationStatus.approved,
-        approvedAt: DateTime.now().subtract(const Duration(days: 1)),
-      ),
-      Donation(
-        donationId: 'DON_003',
-        donorId: 'USER_001',
-        medicineName: 'Ibuprofen',
-        medicineType: 'Tablet',
-        quantity: 20,
-        expiryDate: DateTime(2025, 8, 10),
-        donorLocation: 'Dhaka',
-        latitude: 23.8110,
-        longitude: 90.4120,
-        description: 'Pain reliever',
-        status: DonationStatus.approved,
-        approvedAt: DateTime.now().subtract(const Duration(days: 3)),
-      ),
-      Donation(
-        donationId: 'DON_004',
-        donorId: 'USER_003',
-        medicineName: 'Vitamin C',
-        medicineType: 'Tablet',
-        quantity: 60,
-        expiryDate: DateTime(2026, 6, 30),
-        donorLocation: 'Sylhet',
-        latitude: 24.8949,
-        longitude: 91.8687,
-        description: 'Multivitamin supplement',
-        status: DonationStatus.approved,
-        approvedAt: DateTime.now(),
-      ),
-      Donation(
-        donationId: 'DON_005',
-        donorId: 'USER_002',
-        medicineName: 'Antihistamine',
-        medicineType: 'Tablet',
-        quantity: 15,
-        expiryDate: DateTime(2026, 1, 20),
-        donorLocation: 'Chittagong',
-        latitude: 22.3569,
-        longitude: 91.7832,
-        description: 'Allergy medicine',
-        status: DonationStatus.pending,
-      ),
-    ];
+  /// Map Supabase row to Donation model
+  Donation _mapRowToDonation(Map<String, dynamic> row) {
+    return Donation(
+      donationId: row['id'] as String,
+      donorId: row['donor_id'] as String,
+      medicineName: row['medicine_name'] as String,
+      medicineType: row['medicine_type'] as String,
+      quantity: row['quantity'] as int,
+      expiryDate: DateTime.parse(row['expiry_date'] as String),
+      donorLocation: row['donor_location'] as String,
+      latitude: (row['latitude'] as num?)?.toDouble() ?? 0.0,
+      longitude: (row['longitude'] as num?)?.toDouble() ?? 0.0,
+      photoUrl: row['photo_url'] as String?,
+      description: row['description'] as String?,
+      status: _parseStatus(row['status'] as String),
+      claimedByUserId: row['claimed_by_user_id'] as String?,
+      adminNotes: row['admin_notes'] as String?,
+      createdAt: DateTime.parse(row['created_at'] as String),
+      approvedAt: row['approved_at'] != null
+          ? DateTime.parse(row['approved_at'] as String)
+          : null,
+      claimedAt: row['claimed_at'] != null
+          ? DateTime.parse(row['claimed_at'] as String)
+          : null,
+    );
   }
 
-  /// Add a new donation
+  /// Parse status string to enum
+  DonationStatus _parseStatus(String status) {
+    return DonationStatus.values.firstWhere(
+      (e) => e.toString().split('.').last == status,
+      orElse: () => DonationStatus.pending,
+    );
+  }
+
+  /// Create a new donation in Supabase
   Future<String> createDonation({
     required String donorId,
     required String medicineName,
@@ -94,53 +52,103 @@ class DonationService {
     required double latitude,
     required double longitude,
     String? photoUrl,
+    String? dosage,
     String? description,
   }) async {
     try {
-      final donationId = 'DON_${_idCounter++}';
+      final donationId = 'DON_${DateTime.now().millisecondsSinceEpoch}';
 
-      final donation = Donation(
-        donationId: donationId,
-        donorId: donorId,
-        medicineName: medicineName,
-        medicineType: medicineType,
-        quantity: quantity,
-        expiryDate: expiryDate,
-        donorLocation: donorLocation,
-        latitude: latitude,
-        longitude: longitude,
-        photoUrl: photoUrl,
-        status: DonationStatus.pending,
-        description: description,
-      );
+      await _supabase
+          .from('donations')
+          .insert({
+            'id': donationId,
+            'donor_id': donorId,
+            'medicine_name': medicineName,
+            'medicine_type': medicineType,
+            'quantity': quantity,
+            'expiry_date': expiryDate.toIso8601String().split('T')[0],
+            'donor_location': donorLocation,
+            'latitude': latitude,
+            'longitude': longitude,
+            'photo_url': photoUrl,
+            'dosage': dosage,
+            'description': description,
+            'status': 'pending',
+          })
+          .select()
+          .single();
 
-      _donations.add(donation);
       return donationId;
     } catch (e) {
       throw Exception('Failed to create donation: $e');
     }
   }
 
-  /// Get all donations
+  /// Get all donations from Supabase
   Future<List<Donation>> getAllDonations() async {
-    return _donations;
+    try {
+      final response = await _supabase
+          .from('donations')
+          .select()
+          .order('created_at', ascending: false);
+
+      return (response as List)
+          .map((row) => _mapRowToDonation(row as Map<String, dynamic>))
+          .toList();
+    } catch (e) {
+      throw Exception('Failed to fetch donations: $e');
+    }
   }
 
-  /// Get approved donations
+  /// Get approved donations from Supabase
   Future<List<Donation>> getApprovedDonations() async {
-    return _donations
-        .where((d) => d.status == DonationStatus.approved)
-        .toList();
+    try {
+      final response = await _supabase
+          .from('donations')
+          .select()
+          .eq('status', 'approved')
+          .order('created_at', ascending: false);
+
+      return (response as List)
+          .map((row) => _mapRowToDonation(row as Map<String, dynamic>))
+          .toList();
+    } catch (e) {
+      throw Exception('Failed to fetch approved donations: $e');
+    }
   }
 
   /// Get pending donations (for admin review)
   Future<List<Donation>> getPendingDonations() async {
-    return _donations.where((d) => d.status == DonationStatus.pending).toList();
+    try {
+      final response = await _supabase
+          .from('donations')
+          .select()
+          .eq('status', 'pending')
+          .order('created_at', ascending: false);
+
+      return (response as List)
+          .map((row) => _mapRowToDonation(row as Map<String, dynamic>))
+          .toList();
+    } catch (e) {
+      throw Exception('Failed to fetch pending donations: $e');
+    }
   }
 
   /// Get donations by donor
   Future<List<Donation>> getDonationsByDonor(String donorId) async {
-    return _donations.where((d) => d.donorId == donorId).toList();
+    try {
+      final response = await _supabase
+          .from('donations')
+          .select()
+          .eq('donor_id', donorId)
+          .order('created_at', ascending: false);
+
+      return (response as List)
+          .map((row) => _mapRowToDonation(row as Map<String, dynamic>))
+          .toList();
+    } catch (e) {
+      throw Exception('Failed to fetch donations: $e');
+    }
   }
 
   /// Get nearby donations (within X km)
@@ -149,27 +157,51 @@ class DonationService {
     double longitude, {
     double radiusKm = 25,
   }) async {
-    return _donations.where((donation) {
-      if (donation.status != DonationStatus.approved) return false;
+    try {
+      final response = await _supabase
+          .from('donations')
+          .select()
+          .eq('status', 'approved')
+          .order('created_at', ascending: false);
 
-      final distance = _calculateDistance(
-        latitude,
-        longitude,
-        donation.latitude,
-        donation.longitude,
-      );
+      final donations = (response as List)
+          .map((row) => _mapRowToDonation(row as Map<String, dynamic>))
+          .toList();
 
-      return distance <= radiusKm;
-    }).toList();
+      return donations.where((donation) {
+        final distance = _calculateDistance(
+          latitude,
+          longitude,
+          donation.latitude,
+          donation.longitude,
+        );
+        return distance <= radiusKm;
+      }).toList();
+    } catch (e) {
+      throw Exception('Failed to fetch nearby donations: $e');
+    }
   }
 
   /// Search donations
   Future<List<Donation>> searchDonations(String query) async {
-    final lowerQuery = query.toLowerCase();
-    return _donations.where((d) {
-      return d.medicineName.toLowerCase().contains(lowerQuery) ||
-          d.medicineType.toLowerCase().contains(lowerQuery);
-    }).toList();
+    try {
+      final response = await _supabase
+          .from('donations')
+          .select()
+          .eq('status', 'approved')
+          .order('created_at', ascending: false);
+
+      final lowerQuery = query.toLowerCase();
+      return (response as List)
+          .map((row) => _mapRowToDonation(row as Map<String, dynamic>))
+          .where((d) {
+            return d.medicineName.toLowerCase().contains(lowerQuery) ||
+                d.medicineType.toLowerCase().contains(lowerQuery);
+          })
+          .toList();
+    } catch (e) {
+      throw Exception('Failed to search donations: $e');
+    }
   }
 
   /// Update donation status
@@ -179,14 +211,15 @@ class DonationService {
     String? adminNotes,
   }) async {
     try {
-      final index = _donations.indexWhere((d) => d.donationId == donationId);
-      if (index != -1) {
-        _donations[index] = _donations[index].copyWith(
-          status: status,
-          adminNotes: adminNotes,
-          approvedAt: status == DonationStatus.approved ? DateTime.now() : null,
-        );
-      }
+      final statusStr = status.toString().split('.').last;
+      final updateData = {
+        'status': statusStr,
+        if (adminNotes != null) 'admin_notes': adminNotes,
+        if (status == DonationStatus.approved)
+          'approved_at': DateTime.now().toIso8601String(),
+      };
+
+      await _supabase.from('donations').update(updateData).eq('id', donationId);
     } catch (e) {
       throw Exception('Failed to update donation status: $e');
     }
@@ -195,14 +228,14 @@ class DonationService {
   /// Claim a donation
   Future<void> claimDonation(String donationId, String claimerId) async {
     try {
-      final index = _donations.indexWhere((d) => d.donationId == donationId);
-      if (index != -1) {
-        _donations[index] = _donations[index].copyWith(
-          claimedByUserId: claimerId,
-          status: DonationStatus.claimed,
-          claimedAt: DateTime.now(),
-        );
-      }
+      await _supabase
+          .from('donations')
+          .update({
+            'claimed_by_user_id': claimerId,
+            'status': 'claimed',
+            'claimed_at': DateTime.now().toIso8601String(),
+          })
+          .eq('id', donationId);
     } catch (e) {
       throw Exception('Failed to claim donation: $e');
     }
@@ -211,7 +244,13 @@ class DonationService {
   /// Get donation by ID
   Future<Donation?> getDonationById(String donationId) async {
     try {
-      return _donations.firstWhere((d) => d.donationId == donationId);
+      final response = await _supabase
+          .from('donations')
+          .select()
+          .eq('id', donationId)
+          .maybeSingle();
+
+      return response != null ? _mapRowToDonation(response) : null;
     } catch (e) {
       return null;
     }
@@ -219,16 +258,42 @@ class DonationService {
 
   /// Check for expiring donations (within 7 days)
   Future<List<Donation>> getExpiringDonations() async {
-    return _donations.where((d) => d.isExpiringsoon).toList();
+    try {
+      final response = await _supabase
+          .from('donations')
+          .select()
+          .eq('status', 'approved')
+          .order('expiry_date', ascending: true);
+
+      return (response as List)
+          .map((row) => _mapRowToDonation(row as Map<String, dynamic>))
+          .where((d) => d.isExpiringsoon)
+          .toList();
+    } catch (e) {
+      throw Exception('Failed to fetch expiring donations: $e');
+    }
   }
 
   /// Mark expired donations
   Future<void> markExpiredDonations() async {
-    for (int i = 0; i < _donations.length; i++) {
-      if (_donations[i].isExpired &&
-          _donations[i].status != DonationStatus.expired) {
-        _donations[i] = _donations[i].copyWith(status: DonationStatus.expired);
+    try {
+      final expiredDonations = await _supabase
+          .from('donations')
+          .select()
+          .neq('status', 'expired')
+          .order('expiry_date', ascending: true);
+
+      for (var row in expiredDonations as List) {
+        final donation = _mapRowToDonation(row as Map<String, dynamic>);
+        if (donation.isExpired) {
+          await _supabase
+              .from('donations')
+              .update({'status': 'expired'})
+              .eq('id', donation.donationId);
+        }
       }
+    } catch (e) {
+      throw Exception('Failed to mark expired donations: $e');
     }
   }
 
