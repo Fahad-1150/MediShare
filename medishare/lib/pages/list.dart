@@ -1,46 +1,6 @@
 import 'package:flutter/material.dart';
-import '../models/medicine.dart';
-import '../widgets/medicine_card.dart';
-
-// EXAMPLEDATA
-final List<Medicine> mockMedicines = [
-  Medicine(
-    name: 'Napa',
-    type: 'Tablet',
-    quantity: 10,
-    expiryDate: DateTime(2025, 1),
-    location: 'Dhaka',
-    photoUrl:
-        'https://chaldn.com/_mpimage/napa-pediatric-drop-15ml-1-pc?src=https%3A%2F%2Feggyolk.chaldal.com%2Fapi%2FPicture%2FRaw%3FpictureId%3D106697&q=low&v=1&m=400&webp=1',
-  ),
-  Medicine(
-    name: 'Ace Paracetamol',
-    type: 'Tablet',
-    quantity: 10,
-    expiryDate: DateTime(2025, 1),
-    location: 'Dhaka',
-    photoUrl:
-        'https://chaldn.com/_mpimage/ace-tablet-500mg-10-tablets?src=https%3A%2F%2Feggyolk.chaldal.com%2Fapi%2FPicture%2FRaw%3FpictureId%3D105213&q=low&v=1&m=400&webp=1',
-  ),
-  Medicine(
-    name: 'Azithromycin',
-    type: 'Capsule',
-    quantity: 10,
-    expiryDate: DateTime(2025, 8),
-    location: 'Chittagong',
-    photoUrl:
-        'https://www.biofieldpharma.com/wp-content/uploads/2023/06/BIOFIELD-OZISET-250-TAB-1-scaled.jpg',
-  ),
-  Medicine(
-    name: 'Insulin',
-    type: 'Injection',
-    quantity: 5,
-    expiryDate: DateTime(2025, 5),
-    location: 'Sylhet',
-    photoUrl:
-        'https://img.lb.wbmdstatic.com/vim/live/webmd/consumer_assets/site_images/article_thumbnails/BigBead/how_insulin_works_bigbead/1800x1200_how_insulin_works_bigbead.jpg?resize=750px:*&output-quality=75',
-  ),
-];
+import '../models/donation.dart';
+import '../services/donation_service.dart';
 
 class MedicineListPage extends StatefulWidget {
   const MedicineListPage({super.key});
@@ -50,23 +10,50 @@ class MedicineListPage extends StatefulWidget {
 }
 
 class _MedicineListPageState extends State<MedicineListPage> {
+  final DonationService _donationService = DonationService();
   String searchTerm = '';
   String filterType = 'All';
+  late Future<List<Donation>> _medicinesFuture;
 
-  List<String> get medicineTypes {
-    final types = mockMedicines.map((m) => m.type).toSet().toList();
-    return ['All', ...types];
+  @override
+  void initState() {
+    super.initState();
+    _medicinesFuture = _donationService.getApprovedDonations();
   }
 
-  List<Medicine> get filteredMedicines {
-    return mockMedicines.where((medicine) {
+  List<String> get medicineTypes {
+    return [
+      'All',
+      'Tablet',
+      'Capsule',
+      'Injection',
+      'Syrup',
+      'Ointment',
+      'Powder',
+    ];
+  }
+
+  List<Donation> _filterMedicines(List<Donation> medicines) {
+    return medicines.where((medicine) {
       final matchesSearch =
-          medicine.name.toLowerCase().contains(searchTerm.toLowerCase()) ||
-          medicine.type.toLowerCase().contains(searchTerm.toLowerCase());
+          medicine.medicineName.toLowerCase().contains(
+            searchTerm.toLowerCase(),
+          ) ||
+          medicine.medicineType.toLowerCase().contains(
+            searchTerm.toLowerCase(),
+          ) ||
+          medicine.donorLocation.toLowerCase().contains(
+            searchTerm.toLowerCase(),
+          );
 
-      final matchesType = filterType == 'All' || medicine.type == filterType;
+      final matchesType =
+          filterType == 'All' || medicine.medicineType == filterType;
 
-      return matchesSearch && matchesType;
+      // Only show approved and not expired medicines
+      final isValid =
+          medicine.status == DonationStatus.approved && !medicine.isExpired;
+
+      return matchesSearch && matchesType && isValid;
     }).toList();
   }
 
@@ -95,22 +82,45 @@ class _MedicineListPageState extends State<MedicineListPage> {
             const SizedBox(height: 16),
             _filterChips(),
             const SizedBox(height: 24),
-            filteredMedicines.isNotEmpty
-                ? GridView.builder(
-                    shrinkWrap: true,
-                    physics: const NeverScrollableScrollPhysics(),
-                    itemCount: filteredMedicines.length,
-                    gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-                      crossAxisCount: crossAxisCount,
-                      mainAxisSpacing: 16,
-                      crossAxisSpacing: 16,
-                      childAspectRatio: 0.7,
+            FutureBuilder<List<Donation>>(
+              future: _medicinesFuture,
+              builder: (context, snapshot) {
+                if (snapshot.connectionState == ConnectionState.waiting) {
+                  return const Center(
+                    child: Padding(
+                      padding: EdgeInsets.symmetric(vertical: 60),
+                      child: CircularProgressIndicator(),
                     ),
-                    itemBuilder: (_, index) {
-                      return MedicineCard(medicine: filteredMedicines[index]);
-                    },
-                  )
-                : _emptyState(),
+                  );
+                }
+
+                if (snapshot.hasError) {
+                  return _errorState(snapshot.error.toString());
+                }
+
+                final medicines = snapshot.data ?? [];
+                final filtered = _filterMedicines(medicines);
+
+                if (filtered.isEmpty) {
+                  return _emptyState();
+                }
+
+                return GridView.builder(
+                  shrinkWrap: true,
+                  physics: const NeverScrollableScrollPhysics(),
+                  itemCount: filtered.length,
+                  gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                    crossAxisCount: crossAxisCount,
+                    mainAxisSpacing: 16,
+                    crossAxisSpacing: 16,
+                    childAspectRatio: 0.7,
+                  ),
+                  itemBuilder: (_, index) {
+                    return _buildDonationCard(filtered[index]);
+                  },
+                );
+              },
+            ),
           ],
         ),
       ),
@@ -120,7 +130,7 @@ class _MedicineListPageState extends State<MedicineListPage> {
   Widget _searchBar() {
     return TextField(
       decoration: InputDecoration(
-        hintText: 'Search medicine name or type',
+        hintText: 'Search medicine name, type or location',
         prefixIcon: const Icon(Icons.search),
         filled: true,
         fillColor: Colors.grey.shade100,
@@ -166,6 +176,127 @@ class _MedicineListPageState extends State<MedicineListPage> {
     );
   }
 
+  Widget _buildDonationCard(Donation donation) {
+    return GestureDetector(
+      onTap: () {
+        Navigator.pushNamed(context, '/medicine-details', arguments: donation);
+      },
+      child: Container(
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: Colors.grey.shade200),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.05),
+              blurRadius: 4,
+              offset: const Offset(0, 2),
+            ),
+          ],
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Medicine Image
+            Container(
+              height: 140,
+              decoration: BoxDecoration(
+                color: Colors.grey.shade100,
+                borderRadius: const BorderRadius.only(
+                  topLeft: Radius.circular(16),
+                  topRight: Radius.circular(16),
+                ),
+              ),
+              child: Center(
+                child: Icon(
+                  Icons.medication,
+                  size: 60,
+                  color: Colors.grey.shade400,
+                ),
+              ),
+            ),
+            // Medicine Info
+            Padding(
+              padding: const EdgeInsets.all(12),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    donation.medicineName,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    donation.medicineType,
+                    style: TextStyle(fontSize: 11, color: Colors.grey.shade600),
+                  ),
+                  const SizedBox(height: 8),
+                  Row(
+                    children: [
+                      Icon(
+                        Icons.location_on,
+                        size: 12,
+                        color: Colors.grey.shade600,
+                      ),
+                      const SizedBox(width: 4),
+                      Expanded(
+                        child: Text(
+                          donation.donorLocation,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                            fontSize: 10,
+                            color: Colors.grey.shade600,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Text(
+                        'Qty: ${donation.quantity}',
+                        style: const TextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 8,
+                          vertical: 3,
+                        ),
+                        decoration: BoxDecoration(
+                          color: Colors.green.shade100,
+                          borderRadius: BorderRadius.circular(4),
+                        ),
+                        child: const Text(
+                          'Available',
+                          style: TextStyle(
+                            fontSize: 9,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.green,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   Widget _emptyState() {
     return Container(
       width: double.infinity,
@@ -189,6 +320,36 @@ class _MedicineListPageState extends State<MedicineListPage> {
           SizedBox(height: 6),
           Text(
             'Try adjusting your search or filters.',
+            style: TextStyle(color: Colors.black54, fontSize: 13),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _errorState(String error) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(vertical: 60),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(22),
+        border: Border.all(
+          color: Colors.grey.shade200,
+          style: BorderStyle.solid,
+        ),
+      ),
+      child: Column(
+        children: [
+          Icon(Icons.error_outline, size: 56, color: Colors.red.shade300),
+          const SizedBox(height: 16),
+          const Text(
+            'Error loading medicines',
+            style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+          ),
+          const SizedBox(height: 6),
+          Text(
+            'Please try again later',
             style: TextStyle(color: Colors.black54, fontSize: 13),
           ),
         ],
