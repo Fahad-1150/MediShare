@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:supabase_flutter/supabase_flutter.dart' as supabase;
+
 import 'state/auth_state.dart';
 import 'pages/landing_page.dart';
 import 'pages/login_page.dart';
@@ -11,8 +13,14 @@ import 'pages/admin_panel.dart';
 import 'pages/user_panel.dart';
 import 'widgets/app_navbar.dart';
 
-void main() {
-  // Initialize AuthState provider
+Future<void> main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+
+  await supabase.Supabase.initialize(
+    url: 'https://tmgcwukjqxtwnmnqrdne.supabase.co',
+    anonKey: 'sb_publishable_xTXkUULZ7qLm5ZNpQPvlXw_mGLh9zqO',
+  );
+
   runApp(
     ChangeNotifierProvider(
       create: (_) => AuthState(),
@@ -75,16 +83,11 @@ class _MainShellState extends State<MainShell> {
     final auth = context.watch<AuthState>();
 
     return Scaffold(
-      // App bar
       appBar: const PreferredSize(
         preferredSize: Size.fromHeight(70),
         child: AppNavbar(),
       ),
-
-      // Page content
       body: _pages[_selectedIndex],
-
-      // Bottom navigation
       bottomNavigationBar: NavigationBar(
         selectedIndex: _selectedIndex,
         onDestinationSelected: (i) {
@@ -101,8 +104,6 @@ class _MainShellState extends State<MainShell> {
           ),
         ],
       ),
-
-      // Floating action button for admin
       floatingActionButton: auth.isAdmin
           ? FloatingActionButton.extended(
               onPressed: () {
