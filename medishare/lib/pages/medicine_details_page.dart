@@ -34,13 +34,18 @@ class _MedicineDetailsPageState extends State<MedicineDetailsPage> {
   Future<void> _loadDonorInfo() async {
     try {
       final donor = await _userService.getUserById(widget.donation.donorId);
-      setState(() => _donor = donor);
-    } catch (e) {}
+      if (mounted) {
+        setState(() => _donor = donor);
+      }
+    } catch (e) {
+      // Handle error silently - donor info is optional
+    }
   }
 
   Future<void> _requestMedicine() async {
     final auth = context.read<AuthState>();
-    if (auth.user == null) {
+    final user = auth.user;
+    if (user == null) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Please login to request medicine')),
       );
@@ -61,14 +66,14 @@ class _MedicineDetailsPageState extends State<MedicineDetailsPage> {
       setState(() => _isRequesting = true);
 
       await _requestService.createRequest(
-        requesterId: auth.user!.userId,
+        requesterId: user.userId,
         donorId: widget.donation.donorId,
         medicineName: widget.donation.medicineName,
         medicineType: widget.donation.medicineType,
         quantity: requestedQuantity,
-        requesterLocation: auth.user!.location,
-        latitude: auth.user!.latitude,
-        longitude: auth.user!.longitude,
+        requesterLocation: user.location,
+        latitude: user.latitude,
+        longitude: user.longitude,
         reason:
             'Requesting $requestedQuantity units of ${widget.donation.medicineName}',
       );
@@ -84,8 +89,11 @@ class _MedicineDetailsPageState extends State<MedicineDetailsPage> {
         Navigator.pop(context);
       }
     } catch (e) {
-      ScaffoldMessenger.of(context)
-          .showSnackBar(SnackBar(content: Text('Error: $e')));
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Error: $e')));
+      }
     } finally {
       if (mounted) setState(() => _isRequesting = false);
     }
@@ -115,11 +123,9 @@ class _MedicineDetailsPageState extends State<MedicineDetailsPage> {
                 ),
               ),
               const SizedBox(height: 24),
-              _buildInfoSection(
-                icon: Icons.person,
-                title: 'Donor',
-                content: _donor?.name ?? 'Loading...',
-              ),
+              _buildDonorDetailsSection(),
+              const SizedBox(height: 16),
+              _buildMedicineDetailsSection(),
               const SizedBox(height: 16),
               _buildLocationSection(),
               const SizedBox(height: 32),
@@ -129,8 +135,7 @@ class _MedicineDetailsPageState extends State<MedicineDetailsPage> {
                 child: ElevatedButton(
                   onPressed: _isRequesting ? null : _requestMedicine,
                   style: ElevatedButton.styleFrom(
-                    backgroundColor:
-                        const Color.fromARGB(255, 4, 113, 78),
+                    backgroundColor: const Color.fromARGB(255, 4, 113, 78),
                   ),
                   child: _isRequesting
                       ? const CircularProgressIndicator(color: Colors.white)
@@ -148,14 +153,133 @@ class _MedicineDetailsPageState extends State<MedicineDetailsPage> {
   }
 
   // 🔹 ONLY MAP SECTION CHANGED (OpenStreetMap)
+  Widget _buildDonorDetailsSection() {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.grey.shade50,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Colors.grey.shade200),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text(
+            'Donor Information',
+            style: TextStyle(
+              fontSize: 18,
+              fontWeight: FontWeight.bold,
+              color: Color.fromARGB(255, 4, 113, 78),
+            ),
+          ),
+          const SizedBox(height: 12),
+          if (_donor == null)
+            const Center(child: CircularProgressIndicator())
+          else ...[
+            _buildDetailRow(Icons.person, 'Name', _donor!.name),
+            _buildDetailRow(Icons.email, 'Email', _donor!.email),
+            _buildDetailRow(Icons.phone, 'Phone', _donor!.phone),
+            _buildDetailRow(Icons.location_on, 'Location', _donor!.location),
+            _buildDetailRow(
+              Icons.verified,
+              'Verified',
+              _donor!.isVerified ? 'Yes' : 'No',
+            ),
+            _buildDetailRow(
+              Icons.admin_panel_settings,
+              'Role',
+              _donor!.role == UserRole.admin ? 'Admin' : 'User',
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _buildMedicineDetailsSection() {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.grey.shade50,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Colors.grey.shade200),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text(
+            'Medicine Details',
+            style: TextStyle(
+              fontSize: 18,
+              fontWeight: FontWeight.bold,
+              color: Color.fromARGB(255, 4, 113, 78),
+            ),
+          ),
+          const SizedBox(height: 12),
+          _buildDetailRow(
+            Icons.medication,
+            'Medicine',
+            widget.donation.medicineName,
+          ),
+          _buildDetailRow(Icons.category, 'Type', widget.donation.medicineType),
+          _buildDetailRow(
+            Icons.inventory,
+            'Available Quantity',
+            '${widget.donation.quantity} units',
+          ),
+          _buildDetailRow(
+            Icons.calendar_today,
+            'Expiry Date',
+            '${widget.donation.expiryDate.day}/${widget.donation.expiryDate.month}/${widget.donation.expiryDate.year}',
+          ),
+          if (widget.donation.description != null &&
+              widget.donation.description!.isNotEmpty)
+            _buildDetailRow(
+              Icons.description,
+              'Description',
+              widget.donation.description!,
+            ),
+          if (widget.donation.photoUrl != null &&
+              widget.donation.photoUrl!.isNotEmpty)
+            Padding(
+              padding: const EdgeInsets.only(top: 8),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    'Photo',
+                    style: TextStyle(fontWeight: FontWeight.w500),
+                  ),
+                  const SizedBox(height: 8),
+                  ClipRRect(
+                    borderRadius: BorderRadius.circular(8),
+                    child: Image.network(
+                      widget.donation.photoUrl!,
+                      height: 150,
+                      width: double.infinity,
+                      fit: BoxFit.cover,
+                      errorBuilder: (context, error, stackTrace) {
+                        return Container(
+                          height: 150,
+                          color: Colors.grey.shade200,
+                          child: const Icon(Icons.broken_image, size: 50),
+                        );
+                      },
+                    ),
+                  ),
+                ],
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+
   Widget _buildLocationSection() {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const Text(
-          'Location',
-          style: TextStyle(fontWeight: FontWeight.bold),
-        ),
+        const Text('Location', style: TextStyle(fontWeight: FontWeight.bold)),
         const SizedBox(height: 12),
         Container(
           height: 200,
@@ -175,8 +299,7 @@ class _MedicineDetailsPageState extends State<MedicineDetailsPage> {
               ),
               children: [
                 TileLayer(
-                  urlTemplate:
-                      'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+                  urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
                   userAgentPackageName: 'com.example.medishare',
                 ),
                 MarkerLayer(
@@ -204,17 +327,38 @@ class _MedicineDetailsPageState extends State<MedicineDetailsPage> {
     );
   }
 
-  Widget _buildInfoSection({
-    required IconData icon,
-    required String title,
-    required String content,
-  }) {
-    return Row(
-      children: [
-        Icon(icon, size: 24),
-        const SizedBox(width: 12),
-        Text(content),
-      ],
+  Widget _buildDetailRow(IconData icon, String label, String value) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 4),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(icon, size: 20, color: Colors.grey.shade600),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  label,
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: Colors.grey.shade600,
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+                Text(
+                  value,
+                  style: const TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
     );
   }
 }
@@ -241,15 +385,66 @@ class _QuantitySelectionDialogState extends State<_QuantitySelectionDialog> {
   Widget build(BuildContext context) {
     return AlertDialog(
       title: Text('Request ${widget.medicineName}'),
-      content: Text('Available: ${widget.maxQuantity} units'),
+      content: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text('Available: ${widget.maxQuantity} units'),
+          const SizedBox(height: 16),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              IconButton(
+                onPressed: _selectedQuantity > 1
+                    ? () => setState(() => _selectedQuantity--)
+                    : null,
+                icon: const Icon(Icons.remove),
+              ),
+              Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 8,
+                ),
+                decoration: BoxDecoration(
+                  border: Border.all(color: Colors.grey.shade300),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Text(
+                  '$_selectedQuantity',
+                  style: const TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ),
+              IconButton(
+                onPressed: _selectedQuantity < widget.maxQuantity
+                    ? () => setState(() => _selectedQuantity++)
+                    : null,
+                icon: const Icon(Icons.add),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          Text(
+            'Requesting $_selectedQuantity unit${_selectedQuantity == 1 ? '' : 's'}',
+            style: TextStyle(color: Colors.grey.shade600, fontSize: 12),
+          ),
+        ],
+      ),
       actions: [
         TextButton(
           onPressed: () => Navigator.pop(context),
           child: const Text('Cancel'),
         ),
         ElevatedButton(
-          onPressed: () => Navigator.pop(context, _selectedQuantity),
-          child: const Text('Request'),
+          onPressed:
+              _selectedQuantity > 0 && _selectedQuantity <= widget.maxQuantity
+              ? () => Navigator.pop(context, _selectedQuantity)
+              : null,
+          style: ElevatedButton.styleFrom(
+            backgroundColor: const Color.fromARGB(255, 4, 113, 78),
+          ),
+          child: const Text('Request', style: TextStyle(color: Colors.white)),
         ),
       ],
     );
