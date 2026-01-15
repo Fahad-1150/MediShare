@@ -1,47 +1,25 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../state/auth_state.dart';
-import '../services/donation_service.dart';
 import '../services/request_service.dart';
-import '../models/donation.dart';
+import '../models/request.dart';
 
-class MyMedicinesPage extends StatefulWidget {
-  const MyMedicinesPage({super.key});
+class MyRequestsPage extends StatefulWidget {
+  const MyRequestsPage({super.key});
 
   @override
-  State<MyMedicinesPage> createState() => _MyMedicinesPageState();
+  State<MyRequestsPage> createState() => _MyRequestsPageState();
 }
 
-class _MyMedicinesPageState extends State<MyMedicinesPage> {
-  final DonationService _donationService = DonationService();
+class _MyRequestsPageState extends State<MyRequestsPage> {
   final RequestService _requestService = RequestService();
-  late Future<List<Donation>> _myMedicines;
-  Map<String, int> _requestCounts = {};
+  late Future<List<MedicineRequest>> _myRequests;
 
   @override
   void initState() {
     super.initState();
     final auth = context.read<AuthState>();
-    _myMedicines = _donationService.getDonationsByDonor(auth.user!.userId);
-    _loadRequestCounts();
-  }
-
-  Future<void> _loadRequestCounts() async {
-    final auth = context.read<AuthState>();
-    final donations = await _donationService.getDonationsByDonor(
-      auth.user!.userId,
-    );
-
-    for (final donation in donations) {
-      try {
-        final requests = await _requestService.getRequestsByDonation(
-          donation.donationId,
-        );
-        setState(() => _requestCounts[donation.donationId] = requests.length);
-      } catch (e) {
-        // Handle error silently
-      }
-    }
+    _myRequests = _requestService.getRequestsByRequester(auth.user!.userId);
   }
 
   @override
@@ -54,7 +32,7 @@ class _MyMedicinesPageState extends State<MyMedicinesPage> {
         backgroundColor: Colors.white,
         iconTheme: const IconThemeData(color: Colors.black),
         title: const Text(
-          'My Medicines',
+          'My Requests',
           style: TextStyle(color: Colors.black, fontWeight: FontWeight.bold),
         ),
       ),
@@ -65,7 +43,7 @@ class _MyMedicinesPageState extends State<MyMedicinesPage> {
           children: [
             _buildHeader(),
             const SizedBox(height: 24),
-            _buildMedicinesList(auth),
+            _buildRequestsList(auth),
           ],
         ),
       ),
@@ -80,7 +58,7 @@ class _MyMedicinesPageState extends State<MyMedicinesPage> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             const Text(
-              'My Medicines',
+              'My Requests',
               style: TextStyle(
                 fontSize: 24,
                 fontWeight: FontWeight.bold,
@@ -89,7 +67,7 @@ class _MyMedicinesPageState extends State<MyMedicinesPage> {
             ),
             const SizedBox(height: 4),
             Text(
-              'All medicines you have added',
+              'Track your medicine requests',
               style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
             ),
           ],
@@ -98,22 +76,18 @@ class _MyMedicinesPageState extends State<MyMedicinesPage> {
           width: 48,
           height: 48,
           decoration: BoxDecoration(
-            color: Colors.orange.withOpacity(0.1),
+            color: Colors.blue.withOpacity(0.1),
             borderRadius: BorderRadius.circular(16),
           ),
-          child: const Icon(
-            Icons.medical_information,
-            color: Colors.orange,
-            size: 24,
-          ),
+          child: const Icon(Icons.inbox, color: Colors.blue, size: 24),
         ),
       ],
     );
   }
 
-  Widget _buildMedicinesList(AuthState auth) {
-    return FutureBuilder<List<Donation>>(
-      future: _myMedicines,
+  Widget _buildRequestsList(AuthState auth) {
+    return FutureBuilder<List<MedicineRequest>>(
+      future: _myRequests,
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) {
           return const Center(child: CircularProgressIndicator());
@@ -127,7 +101,7 @@ class _MyMedicinesPageState extends State<MyMedicinesPage> {
                 Icon(Icons.error_outline, size: 48, color: Colors.red.shade300),
                 const SizedBox(height: 16),
                 Text(
-                  'Error loading medicines',
+                  'Error loading requests',
                   style: TextStyle(color: Colors.red.shade300, fontSize: 16),
                 ),
               ],
@@ -135,23 +109,19 @@ class _MyMedicinesPageState extends State<MyMedicinesPage> {
           );
         }
 
-        final medicines = snapshot.data ?? [];
+        final requests = snapshot.data ?? [];
 
-        if (medicines.isEmpty) {
+        if (requests.isEmpty) {
           return Center(
             child: Padding(
               padding: const EdgeInsets.symmetric(vertical: 48),
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  Icon(
-                    Icons.medical_information,
-                    size: 64,
-                    color: Colors.grey.shade300,
-                  ),
+                  Icon(Icons.inbox, size: 64, color: Colors.grey.shade300),
                   const SizedBox(height: 16),
                   const Text(
-                    'No medicines added yet',
+                    'No requests yet',
                     style: TextStyle(
                       fontSize: 16,
                       fontWeight: FontWeight.bold,
@@ -160,13 +130,13 @@ class _MyMedicinesPageState extends State<MyMedicinesPage> {
                   ),
                   const SizedBox(height: 8),
                   Text(
-                    'Start by adding your first medicine',
+                    'Your medicine requests will appear here',
                     style: TextStyle(color: Colors.grey.shade600),
                   ),
                   const SizedBox(height: 24),
                   ElevatedButton(
                     style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.green,
+                      backgroundColor: Colors.blue,
                       padding: const EdgeInsets.symmetric(
                         horizontal: 24,
                         vertical: 12,
@@ -175,9 +145,9 @@ class _MyMedicinesPageState extends State<MyMedicinesPage> {
                         borderRadius: BorderRadius.circular(12),
                       ),
                     ),
-                    onPressed: () => Navigator.pushNamed(context, '/donate'),
+                    onPressed: () => Navigator.pushNamed(context, '/browse'),
                     child: const Text(
-                      'Add Medicine',
+                      'Browse Medicines',
                       style: TextStyle(
                         color: Colors.white,
                         fontWeight: FontWeight.bold,
@@ -193,17 +163,17 @@ class _MyMedicinesPageState extends State<MyMedicinesPage> {
         return ListView.builder(
           shrinkWrap: true,
           physics: const NeverScrollableScrollPhysics(),
-          itemCount: medicines.length,
+          itemCount: requests.length,
           itemBuilder: (context, index) {
-            final medicine = medicines[index];
-            return _buildMedicineCard(medicine);
+            final request = requests[index];
+            return _buildRequestCard(request);
           },
         );
       },
     );
   }
 
-  Widget _buildMedicineCard(Donation medicine) {
+  Widget _buildRequestCard(MedicineRequest request) {
     return Container(
       margin: const EdgeInsets.only(bottom: 16),
       decoration: BoxDecoration(
@@ -221,7 +191,7 @@ class _MyMedicinesPageState extends State<MyMedicinesPage> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Medicine header with name and status
+          // Request header with name and status
           Padding(
             padding: const EdgeInsets.all(16),
             child: Row(
@@ -236,7 +206,7 @@ class _MyMedicinesPageState extends State<MyMedicinesPage> {
                     border: Border.all(color: Colors.grey.shade300),
                   ),
                   child: Icon(
-                    Icons.medication,
+                    Icons.medical_services,
                     color: Colors.grey.shade400,
                     size: 32,
                   ),
@@ -247,7 +217,7 @@ class _MyMedicinesPageState extends State<MyMedicinesPage> {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        medicine.medicineName,
+                        request.medicineName,
                         style: const TextStyle(
                           fontSize: 16,
                           fontWeight: FontWeight.bold,
@@ -256,77 +226,30 @@ class _MyMedicinesPageState extends State<MyMedicinesPage> {
                       ),
                       const SizedBox(height: 4),
                       Text(
-                        medicine.medicineType,
+                        request.medicineType,
                         style: TextStyle(
                           fontSize: 12,
                           color: Colors.grey.shade600,
                         ),
                       ),
                       const SizedBox(height: 8),
-                      GestureDetector(
-                        onTap: () {
-                          final requestCount =
-                              _requestCounts[medicine.donationId] ?? 0;
-                          if (requestCount > 0) {
-                            Navigator.pushNamed(
-                              context,
-                              '/requests-to-me',
-                              arguments: {
-                                'donationId': medicine.donationId,
-                                'medicineName': medicine.medicineName,
-                              },
-                            );
-                          }
-                        },
-                        child: Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 8,
-                            vertical: 4,
-                          ),
-                          decoration: BoxDecoration(
-                            color: _getStatusColor(
-                              medicine.status,
-                            ).withOpacity(0.1),
-                            borderRadius: BorderRadius.circular(6),
-                          ),
-                          child: Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              Text(
-                                medicine.status
-                                    .toString()
-                                    .split('.')
-                                    .last
-                                    .toUpperCase(),
-                                style: TextStyle(
-                                  fontSize: 10,
-                                  fontWeight: FontWeight.bold,
-                                  color: _getStatusColor(medicine.status),
-                                ),
-                              ),
-                              if (_requestCounts[medicine.donationId] != null &&
-                                  _requestCounts[medicine.donationId]! > 0) ...[
-                                const SizedBox(width: 6),
-                                Container(
-                                  padding: const EdgeInsets.symmetric(
-                                    horizontal: 4,
-                                    vertical: 2,
-                                  ),
-                                  decoration: BoxDecoration(
-                                    color: Colors.blue,
-                                    borderRadius: BorderRadius.circular(8),
-                                  ),
-                                  child: Text(
-                                    '${_requestCounts[medicine.donationId]}',
-                                    style: const TextStyle(
-                                      fontSize: 8,
-                                      fontWeight: FontWeight.bold,
-                                      color: Colors.white,
-                                    ),
-                                  ),
-                                ),
-                              ],
-                            ],
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 8,
+                          vertical: 4,
+                        ),
+                        decoration: BoxDecoration(
+                          color: _getStatusColor(
+                            request.status,
+                          ).withOpacity(0.1),
+                          borderRadius: BorderRadius.circular(6),
+                        ),
+                        child: Text(
+                          _getStatusText(request.status),
+                          style: TextStyle(
+                            fontSize: 10,
+                            fontWeight: FontWeight.bold,
+                            color: _getStatusColor(request.status),
                           ),
                         ),
                       ),
@@ -351,15 +274,12 @@ class _MyMedicinesPageState extends State<MyMedicinesPage> {
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    _buildDetailItem('Quantity', '${medicine.quantity}'),
+                    _buildDetailItem('Quantity', '${request.quantity}'),
                     _buildDetailItem(
-                      'Expiry',
-                      '${medicine.expiryDate.year}-${medicine.expiryDate.month.toString().padLeft(2, '0')}-${medicine.expiryDate.day.toString().padLeft(2, '0')}',
+                      'Requested',
+                      '${request.createdAt.day}/${request.createdAt.month}/${request.createdAt.year}',
                     ),
-                    _buildDetailItem(
-                      'Description',
-                      medicine.description ?? 'N/A',
-                    ),
+                    _buildDetailItem('Reason', request.reason ?? 'N/A'),
                   ],
                 ),
                 const SizedBox(height: 12),
@@ -377,7 +297,7 @@ class _MyMedicinesPageState extends State<MyMedicinesPage> {
                     ),
                     Expanded(
                       child: Text(
-                        medicine.donorLocation,
+                        request.requesterLocation,
                         textAlign: TextAlign.right,
                         style: const TextStyle(
                           fontSize: 12,
@@ -411,18 +331,33 @@ class _MyMedicinesPageState extends State<MyMedicinesPage> {
     );
   }
 
-  Color _getStatusColor(DonationStatus status) {
+  Color _getStatusColor(RequestStatus status) {
     switch (status) {
-      case DonationStatus.pending:
+      case RequestStatus.pending:
         return Colors.amber;
-      case DonationStatus.approved:
+      case RequestStatus.approved:
         return Colors.green;
-      case DonationStatus.rejected:
-        return Colors.red;
-      case DonationStatus.claimed:
+      case RequestStatus.fulfilled:
         return Colors.blue;
-      case DonationStatus.expired:
+      case RequestStatus.rejected:
+        return Colors.red;
+      case RequestStatus.cancelled:
         return Colors.grey;
+    }
+  }
+
+  String _getStatusText(RequestStatus status) {
+    switch (status) {
+      case RequestStatus.pending:
+        return 'REQUESTED';
+      case RequestStatus.approved:
+        return 'APPROVED';
+      case RequestStatus.fulfilled:
+        return 'RECEIVED';
+      case RequestStatus.rejected:
+        return 'REJECTED';
+      case RequestStatus.cancelled:
+        return 'CANCELLED';
     }
   }
 }

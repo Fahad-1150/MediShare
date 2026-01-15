@@ -1,5 +1,6 @@
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../models/notification.dart' as notif_model;
+import '../models/donation.dart';
 import 'donation_service.dart';
 import 'notification_service.dart';
 
@@ -8,6 +9,41 @@ class ExpiryService {
   final _supabase = Supabase.instance.client;
   final _donationService = DonationService();
   final _notificationService = NotificationService();
+
+  /// Map Supabase row to Donation model
+  Donation _mapRowToDonation(Map<String, dynamic> row) {
+    return Donation(
+      donationId: row['id'] as String,
+      donorId: row['donor_id'] as String,
+      medicineName: row['medicine_name'] as String,
+      medicineType: row['medicine_type'] as String,
+      quantity: row['quantity'] as int,
+      expiryDate: DateTime.parse(row['expiry_date'] as String),
+      donorLocation: row['donor_location'] as String,
+      latitude: (row['latitude'] as num?)?.toDouble() ?? 0.0,
+      longitude: (row['longitude'] as num?)?.toDouble() ?? 0.0,
+      photoUrl: row['photo_url'] as String?,
+      description: row['description'] as String?,
+      status: _parseStatus(row['status'] as String),
+      claimedByUserId: row['claimed_by_user_id'] as String?,
+      adminNotes: row['admin_notes'] as String?,
+      createdAt: DateTime.parse(row['created_at'] as String),
+      approvedAt: row['approved_at'] != null
+          ? DateTime.parse(row['approved_at'] as String)
+          : null,
+      claimedAt: row['claimed_at'] != null
+          ? DateTime.parse(row['claimed_at'] as String)
+          : null,
+    );
+  }
+
+  /// Parse status string to enum
+  DonationStatus _parseStatus(String status) {
+    return DonationStatus.values.firstWhere(
+      (e) => e.toString().split('.').last == status,
+      orElse: () => DonationStatus.pending,
+    );
+  }
 
   /// Check for expiring donations and create notifications
   Future<void> checkAndNotifyExpiringDonations() async {
@@ -50,7 +86,21 @@ class ExpiryService {
   /// Mark all expired donations as expired status
   Future<void> markExpiredDonations() async {
     try {
-      await _donationService.markExpiredDonations();
+      final expiredDonations = await _supabase
+          .from('donations')
+          .select()
+          .neq('status', 'expired')
+          .order('expiry_date', ascending: true);
+
+      for (var row in expiredDonations as List) {
+        final donation = _mapRowToDonation(row as Map<String, dynamic>);
+        if (donation.isExpired) {
+          await _supabase
+              .from('donations')
+              .update({'status': 'expired'})
+              .eq('id', donation.donationId);
+        }
+      }
     } catch (e) {
       throw Exception('Failed to mark expired donations: $e');
     }

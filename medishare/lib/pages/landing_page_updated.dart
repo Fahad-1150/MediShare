@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 import 'package:medishare/models/donation.dart';
 import 'package:medishare/pages/medicine_details_page.dart';
 import 'package:medishare/services/donation_service.dart';
+import 'package:medishare/state/auth_state.dart';
 
 class LandingPageUpdated extends StatefulWidget {
   const LandingPageUpdated({super.key});
@@ -16,11 +18,14 @@ class _LandingPageUpdatedState extends State<LandingPageUpdated> {
 
   List<Donation> _featuredMeds = [];
   bool _isLoading = true;
+  String? _currentUserId;
 
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
+      final auth = context.read<AuthState>();
+      _currentUserId = auth.isLoggedIn ? auth.user?.userId : null;
       _fetchApprovedDonations();
     });
   }
@@ -29,8 +34,14 @@ class _LandingPageUpdatedState extends State<LandingPageUpdated> {
     try {
       final donations = await _donationService.getApprovedDonations();
       if (mounted) {
+        List<Donation> filtered = donations;
+        if (_currentUserId != null) {
+          filtered = donations
+              .where((d) => d.donorId != _currentUserId)
+              .toList();
+        }
         setState(() {
-          _featuredMeds = donations.take(10).toList();
+          _featuredMeds = filtered.take(10).toList();
           _isLoading = false;
         });
       }

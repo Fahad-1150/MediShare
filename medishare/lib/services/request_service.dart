@@ -11,6 +11,7 @@ class RequestService {
     return MedicineRequest(
       requestId: row['id'] as String,
       requesterId: row['requester_id'] as String,
+      donorId: row['donor_id'] as String?,
       medicineName: row['medicine_name'] as String,
       medicineType: row['medicine_type'] as String,
       quantity: row['quantity'] as int,
@@ -38,6 +39,7 @@ class RequestService {
   /// Create a new request in Supabase
   Future<String> createRequest({
     required String requesterId,
+    String? donorId,
     required String medicineName,
     required String medicineType,
     required int quantity,
@@ -52,6 +54,7 @@ class RequestService {
       await _supabase.from('requests').insert({
         'id': requestId,
         'requester_id': requesterId,
+        'donor_id': donorId,
         'medicine_name': medicineName,
         'medicine_type': medicineType,
         'quantity': quantity,
@@ -117,6 +120,40 @@ class RequestService {
           .toList();
     } catch (e) {
       throw Exception('Failed to fetch requests: $e');
+    }
+  }
+
+  /// Get requests by donation ID
+  Future<List<MedicineRequest>> getRequestsByDonation(String donationId) async {
+    try {
+      final response = await _supabase
+          .from('requests')
+          .select()
+          .eq('assigned_donation_id', donationId)
+          .order('created_at', ascending: false);
+
+      return (response as List)
+          .map((row) => _mapRowToRequest(row as Map<String, dynamic>))
+          .toList();
+    } catch (e) {
+      throw Exception('Failed to fetch requests for donation: $e');
+    }
+  }
+
+  /// Get requests by donor ID (all requests made to a specific donor)
+  Future<List<MedicineRequest>> getRequestsByDonor(String donorId) async {
+    try {
+      final response = await _supabase
+          .from('requests')
+          .select()
+          .eq('donor_id', donorId)
+          .order('created_at', ascending: false);
+
+      return (response as List)
+          .map((row) => _mapRowToRequest(row as Map<String, dynamic>))
+          .toList();
+    } catch (e) {
+      throw Exception('Failed to fetch requests for donor: $e');
     }
   }
 

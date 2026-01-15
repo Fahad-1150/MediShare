@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 import '../state/auth_state.dart';
 import '../services/donation_service.dart';
 import '../services/report_service.dart';
+import '../services/request_service.dart';
 import '../models/donation.dart';
 
 class RequestPage extends StatefulWidget {
@@ -15,11 +16,13 @@ class RequestPage extends StatefulWidget {
 class _RequestPageState extends State<RequestPage> {
   final DonationService _donationService = DonationService();
   final ReportService _reportService = ReportService();
+  final RequestService _requestService = RequestService();
 
   String _searchTerm = '';
   String _filterType = 'All';
   bool _isLoading = false;
   List<Donation> _donations = [];
+  String? _currentUserId;
 
   final List<String> _medicineTypes = [
     'All',
@@ -34,6 +37,8 @@ class _RequestPageState extends State<RequestPage> {
   @override
   void initState() {
     super.initState();
+    final auth = context.read<AuthState>();
+    _currentUserId = auth.isLoggedIn ? auth.user?.userId : null;
     _loadDonations();
   }
 
@@ -42,8 +47,12 @@ class _RequestPageState extends State<RequestPage> {
 
     try {
       final donations = await _donationService.getApprovedDonations();
+      List<Donation> filtered = donations;
+      if (_currentUserId != null) {
+        filtered = donations.where((d) => d.donorId != _currentUserId).toList();
+      }
       setState(() {
-        _donations = donations;
+        _donations = filtered;
         _isLoading = false;
       });
     } catch (e) {
@@ -59,54 +68,52 @@ class _RequestPageState extends State<RequestPage> {
     }
   }
 
-  Future<void> _claimMedicine(Donation donation) async {
+  Future<void> _requestMedicine(Donation donation) async {
     final auth = context.read<AuthState>();
 
     if (!auth.isLoggedIn) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Please login to claim medicine')),
+        const SnackBar(content: Text('Please login to request medicine')),
       );
       return;
     }
 
-    // Confirm claim
-    final confirmed = await showDialog<bool>(
+    // Show quantity selection dialog
+    final requestedQuantity = await showDialog<int>(
       context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Claim Medicine?'),
-        content: Text(
-          'Do you want to claim ${donation.medicineName}?\n\nQuantity: ${donation.quantity} units\nExpiry: ${donation.expiryDate.day}/${donation.expiryDate.month}/${donation.expiryDate.year}',
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context, false),
-            child: const Text('Cancel'),
-          ),
-          ElevatedButton(
-            onPressed: () => Navigator.pop(context, true),
-            child: const Text('Claim'),
-          ),
-        ],
+      builder: (context) => _QuantitySelectionDialog(
+        maxQuantity: donation.quantity,
+        medicineName: donation.medicineName,
       ),
     );
 
-    if (confirmed != true) return;
+    if (requestedQuantity == null || requestedQuantity <= 0) return;
 
     try {
-      await _donationService.claimDonation(
-        donation.donationId,
-        auth.user!.userId,
+      await _requestService.createRequest(
+        requesterId: auth.user!.userId,
+        donorId: donation.donorId,
+        medicineName: donation.medicineName,
+        medicineType: donation.medicineType,
+        quantity: requestedQuantity,
+        requesterLocation: auth.user!.location,
+        latitude: auth.user!.latitude,
+        longitude: auth.user!.longitude,
+        reason:
+            'Requesting ${requestedQuantity} units of ${donation.medicineName}',
       );
-
-      await _loadDonations();
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Medicine claimed successfully!'),
+          SnackBar(
+            content: Text(
+              'Request for ${requestedQuantity} units submitted successfully!',
+            ),
             backgroundColor: Colors.green,
           ),
         );
+        // Refresh the donations list to show updated quantities
+        _loadDonations();
       }
     } catch (e) {
       if (mounted) {
@@ -269,7 +276,7 @@ class _RequestPageState extends State<RequestPage> {
                   final donation = _filteredDonations[index];
                   return _DonationCard(
                     donation: donation,
-                    onClaim: () => _claimMedicine(donation),
+                    onRequest: () => _requestMedicine(donation),
                     onReport: () => _reportMedicine(donation),
                   );
                 },
@@ -284,12 +291,12 @@ class _RequestPageState extends State<RequestPage> {
 /// Custom donation card with actions
 class _DonationCard extends StatelessWidget {
   final Donation donation;
-  final VoidCallback onClaim;
+  final VoidCallback onRequest;
   final VoidCallback onReport;
 
   const _DonationCard({
     required this.donation,
-    required this.onClaim,
+    required this.onRequest,
     required this.onReport,
   });
 
@@ -365,7 +372,7 @@ class _DonationCard extends StatelessWidget {
                     children: [
                       Expanded(
                         child: ElevatedButton(
-                          onPressed: onClaim,
+                          onPressed: onRequest,
                           style: ElevatedButton.styleFrom(
                             padding: const EdgeInsets.symmetric(vertical: 8),
                             backgroundColor: const Color.fromARGB(
@@ -376,7 +383,7 @@ class _DonationCard extends StatelessWidget {
                             ),
                           ),
                           child: const Text(
-                            'Claim',
+                            'Request',
                             style: TextStyle(
                               fontSize: 11,
                               fontWeight: FontWeight.bold,
@@ -520,6 +527,100 @@ class _ReportDialogState extends State<_ReportDialog> {
             }
           },
           child: const Text('Report'),
+        ),
+      ],
+    );
+  }
+}
+
+/// Quantity selection dialog for medicine requests
+class _QuantitySelectionDialog extends StatefulWidget {
+  final int maxQuantity;
+  final String medicineName;
+
+  const _QuantitySelectionDialog({
+    required this.maxQuantity,
+    required this.medicineName,
+  });
+
+  @override
+  State<_QuantitySelectionDialog> createState() =>
+      _QuantitySelectionDialogState();
+}
+
+class _QuantitySelectionDialogState extends State<_QuantitySelectionDialog> {
+  late int _selectedQuantity;
+
+  @override
+  void initState() {
+    super.initState();
+    _selectedQuantity = 1; // Default to 1 unit
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: Text('Request ${widget.medicineName}'),
+      content: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text('Available quantity: ${widget.maxQuantity} units'),
+          const SizedBox(height: 16),
+          const Text(
+            'Select quantity to request:',
+            style: TextStyle(fontWeight: FontWeight.bold),
+          ),
+          const SizedBox(height: 12),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              IconButton(
+                onPressed: _selectedQuantity > 1
+                    ? () => setState(() => _selectedQuantity--)
+                    : null,
+                icon: const Icon(Icons.remove),
+              ),
+              Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 8,
+                ),
+                decoration: BoxDecoration(
+                  border: Border.all(color: Colors.grey),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Text(
+                  '$_selectedQuantity',
+                  style: const TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ),
+              IconButton(
+                onPressed: _selectedQuantity < widget.maxQuantity
+                    ? () => setState(() => _selectedQuantity++)
+                    : null,
+                icon: const Icon(Icons.add),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          Text(
+            'Requesting $_selectedQuantity of ${widget.maxQuantity} available units',
+            style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
+            textAlign: TextAlign.center,
+          ),
+        ],
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(context),
+          child: const Text('Cancel'),
+        ),
+        ElevatedButton(
+          onPressed: () => Navigator.pop(context, _selectedQuantity),
+          child: const Text('Request'),
         ),
       ],
     );

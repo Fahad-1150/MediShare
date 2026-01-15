@@ -220,19 +220,19 @@ class _UserPanelState extends State<UserPanel> {
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         _buildActionButton(
-          'My Donations',
-          'Track donations you shared',
-          Icons.card_giftcard,
+          'Requested to Me',
+          'View all requests for your donations',
+          Icons.people_alt,
           const Color.fromARGB(255, 4, 113, 78),
-          () => Navigator.pushNamed(context, '/profile'),
+          () => Navigator.pushNamed(context, '/requested-to-me'),
         ),
         const SizedBox(height: 12),
         _buildActionButton(
-          'Received Medicines',
-          'View medicines you received',
+          'My Requests',
+          'View medicines you requested',
           Icons.inbox,
           Colors.blue,
-          () => Navigator.pushNamed(context, '/profile'),
+          () => Navigator.pushNamed(context, '/my-requests'),
         ),
         const SizedBox(height: 12),
         _buildActionButton(

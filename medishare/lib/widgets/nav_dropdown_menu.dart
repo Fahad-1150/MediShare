@@ -21,7 +21,7 @@ class NavDropdownMenu extends StatelessWidget {
         _menuItem('browse', Icons.local_pharmacy, 'Browse Medicines'),
         _menuItem('donate', Icons.add_circle_outline, 'Donate Medicine'),
         _menuItem('request', Icons.shopping_bag_outlined, 'Request Medicine'),
-        _menuItem('mydonations', Icons.card_giftcard, 'My Donations'),
+        _menuItem('requestedtome', Icons.people_alt, 'Requested to Me'),
         _menuItem('received', Icons.inbox, 'Received'),
         const PopupMenuDivider(),
         _menuItem('logout', Icons.logout, 'Logout', color: Colors.red),
@@ -81,6 +81,9 @@ class NavDropdownMenu extends StatelessWidget {
         break;
       case 'request':
         Navigator.pushNamed(context, '/request');
+        break;
+      case 'requestedtome':
+        Navigator.pushNamed(context, '/requested-to-me');
         break;
       case 'logout':
         auth.logout();

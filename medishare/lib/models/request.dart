@@ -5,6 +5,8 @@ enum RequestStatus { pending, approved, fulfilled, rejected, cancelled }
 class MedicineRequest {
   final String requestId;
   final String requesterId; // User requesting
+  final String?
+  donorId; // Donor this request is for (when requesting specific donation)
   final String medicineName;
   final String medicineType;
   final int quantity;
@@ -21,6 +23,7 @@ class MedicineRequest {
   MedicineRequest({
     required this.requestId,
     required this.requesterId,
+    this.donorId,
     required this.medicineName,
     required this.medicineType,
     required this.quantity,
@@ -39,6 +42,7 @@ class MedicineRequest {
   MedicineRequest copyWith({
     String? requestId,
     String? requesterId,
+    String? donorId,
     String? medicineName,
     String? medicineType,
     int? quantity,
@@ -55,6 +59,7 @@ class MedicineRequest {
     return MedicineRequest(
       requestId: requestId ?? this.requestId,
       requesterId: requesterId ?? this.requesterId,
+      donorId: donorId ?? this.donorId,
       medicineName: medicineName ?? this.medicineName,
       medicineType: medicineType ?? this.medicineType,
       quantity: quantity ?? this.quantity,

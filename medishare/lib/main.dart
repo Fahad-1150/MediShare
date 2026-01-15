@@ -11,8 +11,11 @@ import 'pages/donate_page.dart';
 import 'pages/request_page.dart';
 import 'pages/admin_panel.dart';
 import 'pages/user_panel.dart';
+import 'pages/my_requests.dart';
 import 'pages/my_medicines_page.dart';
 import 'pages/medicine_details_page.dart';
+import 'pages/request_to_me.dart';
+import 'pages/requested_to_me.dart';
 import 'models/donation.dart';
 import 'widgets/app_navbar.dart';
 
@@ -56,12 +59,23 @@ class MediShareApp extends StatelessWidget {
         '/admin': (_) => const AdminPanel(),
         '/profile': (_) => const UserPanel(),
         '/my-medicines': (_) => const MyMedicinesPage(),
+        '/my-requests': (_) => const MyRequestsPage(),
+        '/requested-to-me': (_) => const RequestedToMePage(),
       },
       onGenerateRoute: (settings) {
         if (settings.name == '/medicine-details') {
           final donation = settings.arguments as Donation;
           return MaterialPageRoute(
             builder: (context) => MedicineDetailsPage(donation: donation),
+          );
+        }
+        if (settings.name == '/requests-to-me') {
+          final args = settings.arguments as Map<String, String>;
+          return MaterialPageRoute(
+            builder: (context) => RequestsToMePage(
+              donationId: args['donationId']!,
+              medicineName: args['medicineName']!,
+            ),
           );
         }
         return null;

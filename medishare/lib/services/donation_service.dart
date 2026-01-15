@@ -274,26 +274,47 @@ class DonationService {
     }
   }
 
-  /// Mark expired donations
-  Future<void> markExpiredDonations() async {
+  /// Update donation quantity (reduce available quantity)
+  Future<void> updateDonationQuantity(
+    String donationId,
+    int newQuantity,
+  ) async {
     try {
-      final expiredDonations = await _supabase
+      await _supabase
           .from('donations')
-          .select()
-          .neq('status', 'expired')
-          .order('expiry_date', ascending: true);
+          .update({
+            'quantity': newQuantity,
+            'updated_at': DateTime.now().toIso8601String(),
+          })
+          .eq('id', donationId);
+    } catch (e) {
+      throw Exception('Failed to update donation quantity: $e');
+    }
+  }
 
-      for (var row in expiredDonations as List) {
-        final donation = _mapRowToDonation(row as Map<String, dynamic>);
-        if (donation.isExpired) {
-          await _supabase
-              .from('donations')
-              .update({'status': 'expired'})
-              .eq('id', donation.donationId);
-        }
+  /// Reduce donation quantity by specified amount
+  Future<void> reduceDonationQuantity(String donationId, int reduceBy) async {
+    try {
+      // First get current quantity
+      final donation = await getDonationById(donationId);
+      if (donation == null) {
+        throw Exception('Donation not found');
+      }
+
+      final newQuantity = donation.quantity - reduceBy;
+      if (newQuantity < 0) {
+        throw Exception('Insufficient quantity available');
+      }
+
+      // Update quantity
+      await updateDonationQuantity(donationId, newQuantity);
+
+      // If quantity becomes 0, mark as claimed
+      if (newQuantity == 0) {
+        await updateDonationStatus(donationId, DonationStatus.claimed);
       }
     } catch (e) {
-      throw Exception('Failed to mark expired donations: $e');
+      throw Exception('Failed to reduce donation quantity: $e');
     }
   }
 
