@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../state/auth_state.dart';
 import '../widgets/nav_dropdown_menu.dart';
+import 'my_requests.dart';
 
 class UserPanel extends StatefulWidget {
   const UserPanel({super.key});
@@ -219,6 +220,14 @@ class _UserPanelState extends State<UserPanel> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
+        _buildActionButton(
+          'Messages',
+          'Chat with donors and receivers',
+          Icons.message,
+          Colors.purple,
+          () => Navigator.pushNamed(context, '/my-requests'),
+        ),
+        const SizedBox(height: 12),
         _buildActionButton(
           'Requested to Me',
           'View all requests for your donations',

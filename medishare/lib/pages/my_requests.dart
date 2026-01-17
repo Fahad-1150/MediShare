@@ -6,6 +6,7 @@ import '../services/donation_service.dart';
 import '../models/request.dart';
 import 'file_report_page.dart';
 import 'view_reports_page.dart';
+import 'chat_page.dart';
 
 class MyRequestsPage extends StatefulWidget {
   const MyRequestsPage({super.key});
@@ -398,7 +399,7 @@ class _MyRequestsPageState extends State<MyRequestsPage> {
                           ),
                         ),
                       ),
-                      const SizedBox(width: 12),
+                      const SizedBox(width: 8),
                       Expanded(
                         child: OutlinedButton(
                           onPressed: () {
@@ -424,7 +425,68 @@ class _MyRequestsPageState extends State<MyRequestsPage> {
                           ),
                         ),
                       ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: OutlinedButton(
+                          onPressed: () {
+                            final auth = context.read<AuthState>();
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (context) => ChatPage(
+                                  requestId: request.requestId,
+                                  otherUserId: request.donorId ?? '',
+                                  otherUserName: 'Donor',
+                                ),
+                              ),
+                            );
+                          },
+                          style: OutlinedButton.styleFrom(
+                            foregroundColor: Colors.green,
+                            side: const BorderSide(color: Colors.green),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                          ),
+                          child: const Text(
+                            'Chat',
+                            style: TextStyle(fontWeight: FontWeight.bold),
+                          ),
+                        ),
+                      ),
                     ],
+                  ),
+                ] else if (request.status == RequestStatus.pending ||
+                    request.status == RequestStatus.approved ||
+                    request.status == RequestStatus.rejected) ...[
+                  const SizedBox(height: 16),
+                  SizedBox(
+                    width: double.infinity,
+                    child: OutlinedButton(
+                      onPressed: () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) => ChatPage(
+                              requestId: request.requestId,
+                              otherUserId: request.donorId ?? '',
+                              otherUserName: 'Donor',
+                            ),
+                          ),
+                        );
+                      },
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: Colors.green,
+                        side: const BorderSide(color: Colors.green),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                      ),
+                      child: const Text(
+                        'Chat with Donor',
+                        style: TextStyle(fontWeight: FontWeight.bold),
+                      ),
+                    ),
                   ),
                 ],
               ],

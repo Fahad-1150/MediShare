@@ -9,6 +9,7 @@ import '../models/user.dart';
 import '../models/donation.dart';
 import 'file_report_page.dart';
 import 'view_reports_page.dart';
+import 'chat_page.dart';
 
 class RequestedToMePage extends StatefulWidget {
   final String? donationId;
@@ -648,7 +649,7 @@ class _RequestedToMePageState extends State<RequestedToMePage> {
                           ),
                         ),
                       ),
-                      const SizedBox(width: 12),
+                      const SizedBox(width: 8),
                       Expanded(
                         child: OutlinedButton(
                           onPressed: () => _rejectRequest(request),
@@ -665,35 +666,100 @@ class _RequestedToMePageState extends State<RequestedToMePage> {
                           ),
                         ),
                       ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: OutlinedButton(
+                          onPressed: () {
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (context) => ChatPage(
+                                  requestId: request.requestId,
+                                  otherUserId: request.requesterId,
+                                  otherUserName: requester?.name ?? 'Requester',
+                                ),
+                              ),
+                            );
+                          },
+                          style: OutlinedButton.styleFrom(
+                            foregroundColor: Colors.green,
+                            side: const BorderSide(color: Colors.green),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                          ),
+                          child: const Text(
+                            'Chat',
+                            style: TextStyle(fontWeight: FontWeight.bold),
+                          ),
+                        ),
+                      ),
                     ],
                   )
                 else if (request.status == RequestStatus.approved)
-                  SizedBox(
-                    width: double.infinity,
-                    height: 48,
-                    child: ElevatedButton(
-                      onPressed: donation != null
-                          ? () => _fulfillRequest(request, donation!)
-                          : null,
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: donation != null
-                            ? Colors.green
-                            : Colors.grey,
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(12),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: SizedBox(
+                          height: 48,
+                          child: ElevatedButton(
+                            onPressed: donation != null
+                                ? () => _fulfillRequest(request, donation!)
+                                : null,
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: donation != null
+                                  ? Colors.green
+                                  : Colors.grey,
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                            ),
+                            child: Text(
+                              donation != null
+                                  ? 'Mark as Delivered'
+                                  : 'Loading donation...',
+                              style: const TextStyle(
+                                fontSize: 14,
+                                fontWeight: FontWeight.bold,
+                                color: Colors.white,
+                              ),
+                            ),
+                          ),
                         ),
                       ),
-                      child: Text(
-                        donation != null
-                            ? 'Mark as Delivered'
-                            : 'Loading donation...',
-                        style: const TextStyle(
-                          fontSize: 14,
-                          fontWeight: FontWeight.bold,
-                          color: Colors.white,
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: SizedBox(
+                          height: 48,
+                          child: OutlinedButton(
+                            onPressed: () {
+                              Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (context) => ChatPage(
+                                    requestId: request.requestId,
+                                    otherUserId: request.requesterId,
+                                    otherUserName:
+                                        requester?.name ?? 'Requester',
+                                  ),
+                                ),
+                              );
+                            },
+                            style: OutlinedButton.styleFrom(
+                              foregroundColor: Colors.blue,
+                              side: const BorderSide(color: Colors.blue),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                            ),
+                            child: const Text(
+                              'Chat',
+                              style: TextStyle(fontWeight: FontWeight.bold),
+                            ),
+                          ),
                         ),
                       ),
-                    ),
+                    ],
                   )
                 else if (request.status == RequestStatus.fulfilled)
                   Container(
@@ -793,7 +859,7 @@ class _RequestedToMePageState extends State<RequestedToMePage> {
                                 ),
                               ),
                             ),
-                            const SizedBox(width: 12),
+                            const SizedBox(width: 8),
                             Expanded(
                               child: OutlinedButton(
                                 onPressed: () {
@@ -815,6 +881,35 @@ class _RequestedToMePageState extends State<RequestedToMePage> {
                                 ),
                                 child: const Text(
                                   'View Reports',
+                                  style: TextStyle(fontWeight: FontWeight.bold),
+                                ),
+                              ),
+                            ),
+                            const SizedBox(width: 8),
+                            Expanded(
+                              child: OutlinedButton(
+                                onPressed: () {
+                                  Navigator.push(
+                                    context,
+                                    MaterialPageRoute(
+                                      builder: (context) => ChatPage(
+                                        requestId: request.requestId,
+                                        otherUserId: request.requesterId,
+                                        otherUserName:
+                                            requester?.name ?? 'Requester',
+                                      ),
+                                    ),
+                                  );
+                                },
+                                style: OutlinedButton.styleFrom(
+                                  foregroundColor: Colors.blue,
+                                  side: const BorderSide(color: Colors.blue),
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(8),
+                                  ),
+                                ),
+                                child: const Text(
+                                  'Chat',
                                   style: TextStyle(fontWeight: FontWeight.bold),
                                 ),
                               ),
