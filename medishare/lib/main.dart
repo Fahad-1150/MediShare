@@ -8,13 +8,12 @@ import 'pages/login_page.dart';
 import 'pages/signup_page.dart';
 import 'pages/list.dart';
 import 'pages/donate_page.dart';
-import 'pages/request_page.dart';
+
 import 'pages/admin_panel.dart';
 import 'pages/user_panel.dart';
 import 'pages/my_requests.dart';
 import 'pages/my_medicines_page.dart';
 import 'pages/medicine_details_page.dart';
-import 'pages/request_to_me.dart';
 import 'pages/requested_to_me.dart';
 import 'models/donation.dart';
 import 'widgets/app_navbar.dart';
@@ -54,7 +53,6 @@ class MediShareApp extends StatelessWidget {
         '/login': (_) => const LoginPage(),
         '/signup': (_) => const SignupPage(),
         '/donate': (_) => const DonatePage(),
-        '/request': (_) => const RequestPage(),
         '/browse': (_) => const MedicineListPage(),
         '/admin': (_) => const AdminPanel(),
         '/profile': (_) => const UserPanel(),
@@ -72,7 +70,7 @@ class MediShareApp extends StatelessWidget {
         if (settings.name == '/requests-to-me') {
           final args = settings.arguments as Map<String, String>;
           return MaterialPageRoute(
-            builder: (context) => RequestsToMePage(
+            builder: (context) => RequestedToMePage(
               donationId: args['donationId']!,
               medicineName: args['medicineName']!,
             ),
@@ -104,7 +102,6 @@ class _MainShellState extends State<MainShell> {
       const LandingPage(),
       const MedicineListPage(),
       const DonatePage(),
-      const RequestPage(),
     ];
   }
 

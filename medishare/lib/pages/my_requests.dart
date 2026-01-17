@@ -2,7 +2,10 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../state/auth_state.dart';
 import '../services/request_service.dart';
+import '../services/donation_service.dart';
 import '../models/request.dart';
+import 'file_report_page.dart';
+import 'view_reports_page.dart';
 
 class MyRequestsPage extends StatefulWidget {
   const MyRequestsPage({super.key});
@@ -13,6 +16,7 @@ class MyRequestsPage extends StatefulWidget {
 
 class _MyRequestsPageState extends State<MyRequestsPage> {
   final RequestService _requestService = RequestService();
+  final DonationService _donationService = DonationService();
   late Future<List<MedicineRequest>> _myRequests;
 
   @override
@@ -20,6 +24,42 @@ class _MyRequestsPageState extends State<MyRequestsPage> {
     super.initState();
     final auth = context.read<AuthState>();
     _myRequests = _requestService.getRequestsByRequester(auth.user!.userId);
+  }
+
+  Future<void> _confirmReceived(MedicineRequest request) async {
+    if (request.assignedDonationId == null) return;
+
+    try {
+      // Update status to received
+      await _requestService.updateRequestStatus(
+        request.requestId,
+        RequestStatus.received,
+      );
+
+      // Reduce the quantity from the donation
+      await _donationService.reduceDonationQuantity(
+        request.assignedDonationId!,
+        request.quantity,
+      );
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Medicine received! Transaction completed.'),
+          ),
+        );
+        final auth = context.read<AuthState>();
+        setState(() {
+          _myRequests = _requestService.getRequestsByRequester(
+            auth.user!.userId,
+          );
+        });
+      }
+    } catch (e) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Error: $e')));
+    }
   }
 
   @override
@@ -307,6 +347,86 @@ class _MyRequestsPageState extends State<MyRequestsPage> {
                     ),
                   ],
                 ),
+                if (request.status == RequestStatus.fulfilled) ...[
+                  const SizedBox(height: 16),
+                  SizedBox(
+                    width: double.infinity,
+                    height: 48,
+                    child: ElevatedButton(
+                      onPressed: () => _confirmReceived(request),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.green,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                      ),
+                      child: const Text(
+                        'Mark as Received',
+                        style: TextStyle(fontWeight: FontWeight.bold),
+                      ),
+                    ),
+                  ),
+                ] else if (request.status == RequestStatus.received) ...[
+                  const SizedBox(height: 16),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: OutlinedButton(
+                          onPressed: () {
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (context) => FileReportPage(
+                                  requestId: request.requestId,
+                                  donationId: request.assignedDonationId ?? '',
+                                  otherUserId: request.donorId ?? '',
+                                  isDonor: false,
+                                ),
+                              ),
+                            );
+                          },
+                          style: OutlinedButton.styleFrom(
+                            foregroundColor: Colors.blue,
+                            side: const BorderSide(color: Colors.blue),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                          ),
+                          child: const Text(
+                            'File Report',
+                            style: TextStyle(fontWeight: FontWeight.bold),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: OutlinedButton(
+                          onPressed: () {
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (context) => ViewReportsPage(
+                                  requestId: request.requestId,
+                                ),
+                              ),
+                            );
+                          },
+                          style: OutlinedButton.styleFrom(
+                            foregroundColor: Colors.purple,
+                            side: const BorderSide(color: Colors.purple),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                          ),
+                          child: const Text(
+                            'View Reports',
+                            style: TextStyle(fontWeight: FontWeight.bold),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
               ],
             ),
           ),
@@ -343,6 +463,8 @@ class _MyRequestsPageState extends State<MyRequestsPage> {
         return Colors.red;
       case RequestStatus.cancelled:
         return Colors.grey;
+      case RequestStatus.received:
+        return Colors.teal;
     }
   }
 
@@ -353,11 +475,13 @@ class _MyRequestsPageState extends State<MyRequestsPage> {
       case RequestStatus.approved:
         return 'APPROVED';
       case RequestStatus.fulfilled:
-        return 'RECEIVED';
+        return 'DELIVERED';
       case RequestStatus.rejected:
         return 'REJECTED';
       case RequestStatus.cancelled:
         return 'CANCELLED';
+      case RequestStatus.received:
+        return 'DONATED';
     }
   }
 }

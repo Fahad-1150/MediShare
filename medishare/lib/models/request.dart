@@ -1,5 +1,12 @@
 /// Request status
-enum RequestStatus { pending, approved, fulfilled, rejected, cancelled }
+enum RequestStatus {
+  pending,
+  approved,
+  fulfilled,
+  rejected,
+  cancelled,
+  received,
+}
 
 /// Medicine Request model - represents a user's request for medicine
 class MedicineRequest {

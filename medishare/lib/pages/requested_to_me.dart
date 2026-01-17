@@ -7,9 +7,14 @@ import '../services/donation_service.dart';
 import '../models/request.dart';
 import '../models/user.dart';
 import '../models/donation.dart';
+import 'file_report_page.dart';
+import 'view_reports_page.dart';
 
 class RequestedToMePage extends StatefulWidget {
-  const RequestedToMePage({super.key});
+  final String? donationId;
+  final String? medicineName;
+
+  const RequestedToMePage({super.key, this.donationId, this.medicineName});
 
   @override
   State<RequestedToMePage> createState() => _RequestedToMePageState();
@@ -33,7 +38,14 @@ class _RequestedToMePageState extends State<RequestedToMePage> {
   Future<List<MedicineRequest>> _loadRequests(String userId) async {
     try {
       // Get all requests made to this donor
-      final requests = await _requestService.getRequestsByDonor(userId);
+      var requests = await _requestService.getRequestsByDonor(userId);
+
+      // Filter by medicine name if provided
+      if (widget.medicineName != null) {
+        requests = requests.where((r) {
+          return r.medicineName == widget.medicineName;
+        }).toList();
+      }
 
       // Load requester info and donation info for each request
       for (final request in requests) {
@@ -47,16 +59,34 @@ class _RequestedToMePageState extends State<RequestedToMePage> {
           }
         }
 
-        // Load donation info if assigned
-        if (request.assignedDonationId != null &&
-            !_donations.containsKey(request.assignedDonationId)) {
-          try {
-            final donation = await _donationService.getDonationById(
-              request.assignedDonationId!,
-            );
-            _donations[request.assignedDonationId!] = donation;
-          } catch (e) {
-            // Handle error silently
+        // Load requester info and donation info for each request
+        for (final request in requests) {
+          // Load requester info
+          if (!_requesters.containsKey(request.requesterId)) {
+            try {
+              final user = await _userService.getUserById(request.requesterId);
+              _requesters[request.requesterId] = user;
+            } catch (e) {
+              // Handle error silently
+            }
+          }
+
+          // Determine which donation ID to load
+          // If we are in a specific donation view, use that ID
+          // Otherwise use the assigned donation ID from the request
+          final donationIdToLoad =
+              widget.donationId ?? request.assignedDonationId;
+
+          // Load donation info if assigned (always load to get updated quantity)
+          if (donationIdToLoad != null) {
+            try {
+              final donation = await _donationService.getDonationById(
+                donationIdToLoad,
+              );
+              _donations[donationIdToLoad] = donation;
+            } catch (e) {
+              // Handle error silently
+            }
           }
         }
       }
@@ -64,6 +94,128 @@ class _RequestedToMePageState extends State<RequestedToMePage> {
       return requests;
     } catch (e) {
       throw Exception('Failed to load requests: $e');
+    }
+  }
+
+  Future<void> _acceptRequest(MedicineRequest request) async {
+    String? selectedDonationId = widget.donationId;
+
+    // If no donation ID was provided, ask user to select one
+    if (selectedDonationId == null) {
+      selectedDonationId = await _showDonationSelectionDialog(request);
+      if (selectedDonationId == null) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Please select a donation to proceed')),
+        );
+        return;
+      }
+    }
+
+    try {
+      await _requestService.updateRequestStatus(
+        request.requestId,
+        RequestStatus.approved,
+        assignedDonationId: selectedDonationId,
+      );
+
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('Request accepted')));
+        final auth = context.read<AuthState>();
+        setState(() {
+          _requests = _loadRequests(auth.user!.userId);
+        });
+      }
+    } catch (e) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Error: $e')));
+    }
+  }
+
+  Future<String?> _showDonationSelectionDialog(MedicineRequest request) async {
+    final auth = context.read<AuthState>();
+    final donations = await _donationService.getDonationsByDonor(
+      auth.user!.userId,
+    );
+
+    // Filter donations that match the requested medicine
+    final matchingDonations = donations
+        .where(
+          (d) =>
+              d.medicineName.toLowerCase() ==
+              request.medicineName.toLowerCase(),
+        )
+        .toList();
+
+    if (matchingDonations.isEmpty) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('No matching donations available for this medicine'),
+          ),
+        );
+      }
+      return null;
+    }
+
+    String? selectedId;
+
+    if (mounted) {
+      selectedId = await showDialog<String>(
+        context: context,
+        builder: (BuildContext context) => AlertDialog(
+          title: const Text('Select Donation'),
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: matchingDonations.map((donation) {
+                return ListTile(
+                  title: Text(
+                    '${donation.medicineName} - Qty: ${donation.quantity}',
+                  ),
+                  subtitle: Text(
+                    'Expires: ${donation.expiryDate.day}/${donation.expiryDate.month}/${donation.expiryDate.year}',
+                  ),
+                  onTap: () => Navigator.pop(context, donation.donationId),
+                );
+              }).toList(),
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('Cancel'),
+            ),
+          ],
+        ),
+      );
+    }
+
+    return selectedId;
+  }
+
+  Future<void> _rejectRequest(MedicineRequest request) async {
+    try {
+      await _requestService.updateRequestStatus(
+        request.requestId,
+        RequestStatus.rejected,
+      );
+
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('Request rejected')));
+        final auth = context.read<AuthState>();
+        setState(() {
+          _requests = _loadRequests(auth.user!.userId);
+        });
+      }
+    } catch (e) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Error: $e')));
     }
   }
 
@@ -78,18 +230,56 @@ class _RequestedToMePageState extends State<RequestedToMePage> {
         assignedDonationId: donation.donationId,
       );
 
-      // Reduce the available quantity instead of claiming the entire donation
-      await _donationService.reduceDonationQuantity(
-        donation.donationId,
-        request.quantity,
-      );
-
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(
-              'Request fulfilled successfully! ${request.quantity} units dispensed.',
+              'Marked as fulfilled. Waiting for requester confirmation.',
             ),
+          ),
+        );
+        // Refresh the requests
+        final auth = context.read<AuthState>();
+        setState(() {
+          _requests = _loadRequests(auth.user!.userId);
+        });
+      }
+    } catch (e) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Error: $e')));
+    }
+  }
+
+  Future<void> _confirmReceiptAndCompleteDonation(
+    MedicineRequest request,
+  ) async {
+    try {
+      // Get the assigned donation to reduce quantity
+      if (request.assignedDonationId != null) {
+        final donation = await _donationService.getDonationById(
+          request.assignedDonationId!,
+        );
+
+        if (donation != null) {
+          // Reduce the donation quantity
+          await _donationService.reduceDonationQuantity(
+            request.assignedDonationId!,
+            request.quantity,
+          );
+        }
+      }
+
+      // Mark request as received
+      await _requestService.updateRequestStatus(
+        request.requestId,
+        RequestStatus.received,
+      );
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Donation completed successfully! Quantity reduced.'),
           ),
         );
         // Refresh the requests
@@ -112,9 +302,14 @@ class _RequestedToMePageState extends State<RequestedToMePage> {
         elevation: 0,
         backgroundColor: Colors.white,
         iconTheme: const IconThemeData(color: Colors.black),
-        title: const Text(
-          'Requested to Me',
-          style: TextStyle(color: Colors.black, fontWeight: FontWeight.bold),
+        title: Text(
+          widget.medicineName != null
+              ? 'Requests for ${widget.medicineName}'
+              : 'Requested to Me',
+          style: const TextStyle(
+            color: Colors.black,
+            fontWeight: FontWeight.bold,
+          ),
         ),
       ),
       body: SingleChildScrollView(
@@ -138,18 +333,22 @@ class _RequestedToMePageState extends State<RequestedToMePage> {
         Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Text(
-              'All Requests',
-              style: TextStyle(
+            Text(
+              widget.medicineName != null
+                  ? 'Requests for ${widget.medicineName}'
+                  : 'All Requests',
+              style: const TextStyle(
                 fontSize: 24,
                 fontWeight: FontWeight.bold,
                 color: Colors.black,
               ),
             ),
             const SizedBox(height: 4),
-            const Text(
-              'Requests for all your donations',
-              style: TextStyle(fontSize: 12, color: Colors.grey),
+            Text(
+              widget.medicineName != null
+                  ? 'People who requested this medicine'
+                  : 'Requests for all your donations',
+              style: const TextStyle(fontSize: 12, color: Colors.grey),
             ),
           ],
         ),
@@ -216,7 +415,7 @@ class _RequestedToMePageState extends State<RequestedToMePage> {
                   const SizedBox(height: 8),
                   const Text(
                     'Requests for your donations will appear here',
-                    style: TextStyle(color: Colors.grey),
+                    style: TextStyle(color: Colors.grey, fontSize: 14),
                   ),
                 ],
               ),
@@ -230,9 +429,9 @@ class _RequestedToMePageState extends State<RequestedToMePage> {
           itemCount: requests.length,
           itemBuilder: (context, index) {
             final request = requests[index];
-            final donation = request.assignedDonationId != null
-                ? _donations[request.assignedDonationId]
-                : null;
+            // Use the specific donation if provided, otherwise the assigned one
+            final donationId = widget.donationId ?? request.assignedDonationId;
+            final donation = donationId != null ? _donations[donationId] : null;
             final requester = _requesters[request.requesterId];
             return _buildRequestCard(request, donation, requester);
           },
@@ -427,31 +626,204 @@ class _RequestedToMePageState extends State<RequestedToMePage> {
                     ],
                   ),
                 ],
-                if (request.status == RequestStatus.approved &&
-                    donation != null) ...[
-                  const SizedBox(height: 16),
+                const SizedBox(height: 16),
+                if (request.status == RequestStatus.pending)
+                  Row(
+                    children: [
+                      Expanded(
+                        child: ElevatedButton(
+                          onPressed: () => _acceptRequest(request),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: Colors.green,
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                          ),
+                          child: const Text(
+                            'Accept',
+                            style: TextStyle(
+                              fontWeight: FontWeight.bold,
+                              color: Colors.white,
+                            ),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: OutlinedButton(
+                          onPressed: () => _rejectRequest(request),
+                          style: OutlinedButton.styleFrom(
+                            foregroundColor: Colors.red,
+                            side: const BorderSide(color: Colors.red),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                          ),
+                          child: const Text(
+                            'Reject',
+                            style: TextStyle(fontWeight: FontWeight.bold),
+                          ),
+                        ),
+                      ),
+                    ],
+                  )
+                else if (request.status == RequestStatus.approved)
                   SizedBox(
                     width: double.infinity,
                     height: 48,
                     child: ElevatedButton(
-                      onPressed: () => _fulfillRequest(request, donation),
+                      onPressed: donation != null
+                          ? () => _fulfillRequest(request, donation!)
+                          : null,
                       style: ElevatedButton.styleFrom(
-                        backgroundColor: Colors.green,
+                        backgroundColor: donation != null
+                            ? Colors.green
+                            : Colors.grey,
                         shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(12),
                         ),
                       ),
-                      child: const Text(
-                        'Mark as Done',
-                        style: TextStyle(
+                      child: Text(
+                        donation != null
+                            ? 'Mark as Delivered'
+                            : 'Loading donation...',
+                        style: const TextStyle(
                           fontSize: 14,
                           fontWeight: FontWeight.bold,
                           color: Colors.white,
                         ),
                       ),
                     ),
+                  )
+                else if (request.status == RequestStatus.fulfilled)
+                  Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: Colors.orange.shade50,
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: Column(
+                      children: [
+                        const Text(
+                          'Waiting for receiver to confirm',
+                          style: TextStyle(
+                            color: Colors.orange,
+                            fontWeight: FontWeight.bold,
+                            fontSize: 14,
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                        const Text(
+                          'The receiver will confirm when they receive the medicine',
+                          style: TextStyle(color: Colors.orange, fontSize: 12),
+                        ),
+                        const SizedBox(height: 12),
+                        SizedBox(
+                          width: double.infinity,
+                          child: ElevatedButton(
+                            onPressed: () =>
+                                _confirmReceiptAndCompleteDonation(request),
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: Colors.green,
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(8),
+                              ),
+                            ),
+                            child: const Text(
+                              'Receiver Confirmed',
+                              style: TextStyle(
+                                fontSize: 12,
+                                fontWeight: FontWeight.bold,
+                                color: Colors.white,
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  )
+                else if (request.status == RequestStatus.received)
+                  Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: Colors.green.shade50,
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: Column(
+                      children: [
+                        const Text(
+                          'Donated',
+                          style: TextStyle(
+                            color: Colors.green,
+                            fontWeight: FontWeight.bold,
+                            fontSize: 14,
+                          ),
+                        ),
+                        const SizedBox(height: 12),
+                        Row(
+                          children: [
+                            Expanded(
+                              child: OutlinedButton(
+                                onPressed: () {
+                                  Navigator.push(
+                                    context,
+                                    MaterialPageRoute(
+                                      builder: (context) => FileReportPage(
+                                        requestId: request.requestId,
+                                        donationId:
+                                            request.assignedDonationId ?? '',
+                                        otherUserId: request.requesterId,
+                                        isDonor: true,
+                                      ),
+                                    ),
+                                  );
+                                },
+                                style: OutlinedButton.styleFrom(
+                                  foregroundColor: Colors.orange,
+                                  side: const BorderSide(color: Colors.orange),
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(8),
+                                  ),
+                                ),
+                                child: const Text(
+                                  'File Report',
+                                  style: TextStyle(fontWeight: FontWeight.bold),
+                                ),
+                              ),
+                            ),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: OutlinedButton(
+                                onPressed: () {
+                                  Navigator.push(
+                                    context,
+                                    MaterialPageRoute(
+                                      builder: (context) => ViewReportsPage(
+                                        requestId: request.requestId,
+                                      ),
+                                    ),
+                                  );
+                                },
+                                style: OutlinedButton.styleFrom(
+                                  foregroundColor: Colors.purple,
+                                  side: const BorderSide(color: Colors.purple),
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(8),
+                                  ),
+                                ),
+                                child: const Text(
+                                  'View Reports',
+                                  style: TextStyle(fontWeight: FontWeight.bold),
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
                   ),
-                ],
               ],
             ),
           ),
@@ -488,6 +860,8 @@ class _RequestedToMePageState extends State<RequestedToMePage> {
         return Colors.red;
       case RequestStatus.cancelled:
         return Colors.grey;
+      case RequestStatus.received:
+        return Colors.teal;
     }
   }
 
@@ -498,11 +872,13 @@ class _RequestedToMePageState extends State<RequestedToMePage> {
       case RequestStatus.approved:
         return 'APPROVED';
       case RequestStatus.fulfilled:
-        return 'FULFILLED';
+        return 'DELIVERED';
       case RequestStatus.rejected:
         return 'REJECTED';
       case RequestStatus.cancelled:
         return 'CANCELLED';
+      case RequestStatus.received:
+        return 'DONATED';
     }
   }
 }
