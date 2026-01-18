@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../state/auth_state.dart';
 import '../widgets/nav_dropdown_menu.dart';
-import 'my_requests.dart';
 import 'messages_page.dart';
 
 class UserPanel extends StatefulWidget {

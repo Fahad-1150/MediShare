@@ -21,6 +21,8 @@ class _MyRequestsPageState extends State<MyRequestsPage> {
   final DonationService _donationService = DonationService();
   late Future<List<MedicineRequest>> _myRequests;
   Map<String, Donation?> _donations = {};
+  String statusFilter =
+      'All'; // 'All', 'pending', 'approved', 'received', 'cancelled'
 
   @override
   void initState() {
@@ -89,6 +91,61 @@ class _MyRequestsPageState extends State<MyRequestsPage> {
     }
   }
 
+  Future<void> _cancelRequest(MedicineRequest request) async {
+    // Show confirmation dialog
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Cancel Request?'),
+        content: const Text('Are you sure you want to cancel this request?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('No'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(context, true),
+            style: TextButton.styleFrom(foregroundColor: Colors.red),
+            child: const Text('Yes, Cancel'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed != true) return;
+
+    try {
+      await _requestService.updateRequestStatus(
+        request.requestId,
+        RequestStatus.cancelled,
+      );
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Request cancelled successfully')),
+        );
+        final auth = context.read<AuthState>();
+        setState(() {
+          _myRequests = _requestService.getRequestsByRequester(
+            auth.user!.userId,
+          );
+        });
+      }
+    } catch (e) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Error: $e')));
+    }
+  }
+
+  List<MedicineRequest> _filterRequests(List<MedicineRequest> requests) {
+    if (statusFilter == 'All') return requests;
+
+    return requests.where((request) {
+      return request.status.toString().split('.').last == statusFilter;
+    }).toList();
+  }
+
   @override
   Widget build(BuildContext context) {
     final auth = context.watch<AuthState>();
@@ -109,6 +166,8 @@ class _MyRequestsPageState extends State<MyRequestsPage> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             _buildHeader(),
+            const SizedBox(height: 24),
+            _buildStatusFilter(),
             const SizedBox(height: 24),
             _buildRequestsList(auth),
           ],
@@ -152,6 +211,66 @@ class _MyRequestsPageState extends State<MyRequestsPage> {
     );
   }
 
+  Widget _buildStatusFilter() {
+    final statuses = ['All', 'pending', 'approved', 'received', 'cancelled'];
+
+    return SingleChildScrollView(
+      scrollDirection: Axis.horizontal,
+      child: Row(
+        children: statuses.map((status) {
+          final isActive = statusFilter == status;
+          final statusLabel = status == 'All'
+              ? 'All'
+              : status == 'pending'
+              ? 'Pending'
+              : status == 'approved'
+              ? 'Approved'
+              : status == 'received'
+              ? 'Received'
+              : 'Cancelled';
+
+          Color getStatusColor(String s) {
+            switch (s) {
+              case 'pending':
+                return Colors.amber;
+              case 'approved':
+                return Colors.blue;
+              case 'received':
+                return Colors.green;
+              case 'cancelled':
+                return Colors.red;
+              default:
+                return Colors.grey;
+            }
+          }
+
+          return Padding(
+            padding: const EdgeInsets.only(right: 10),
+            child: ChoiceChip(
+              label: Text(statusLabel),
+              selected: isActive,
+              onSelected: (_) => setState(() => statusFilter = status),
+              selectedColor: getStatusColor(status),
+              backgroundColor: Colors.white,
+              labelStyle: TextStyle(
+                color: isActive ? Colors.white : Colors.black54,
+                fontWeight: FontWeight.bold,
+                fontSize: 12,
+              ),
+              shape: StadiumBorder(
+                side: BorderSide(
+                  color: isActive
+                      ? getStatusColor(status)
+                      : Colors.grey.shade300,
+                ),
+              ),
+            ),
+          );
+        }).toList(),
+      ),
+    );
+  }
+
   Widget _buildRequestsList(AuthState auth) {
     return FutureBuilder<List<MedicineRequest>>(
       future: _myRequests,
@@ -177,6 +296,7 @@ class _MyRequestsPageState extends State<MyRequestsPage> {
         }
 
         final requests = snapshot.data ?? [];
+        final filteredRequests = _filterRequests(requests);
 
         if (requests.isEmpty) {
           return Center(
@@ -227,12 +347,44 @@ class _MyRequestsPageState extends State<MyRequestsPage> {
           );
         }
 
+        if (filteredRequests.isEmpty && requests.isNotEmpty) {
+          return Center(
+            child: Padding(
+              padding: const EdgeInsets.symmetric(vertical: 48),
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(
+                    Icons.filter_alt_off,
+                    size: 64,
+                    color: Colors.grey.shade300,
+                  ),
+                  const SizedBox(height: 16),
+                  const Text(
+                    'No requests with this status',
+                    style: TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.black87,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    'Try changing the filter',
+                    style: TextStyle(color: Colors.grey.shade600),
+                  ),
+                ],
+              ),
+            ),
+          );
+        }
+
         return ListView.builder(
           shrinkWrap: true,
           physics: const NeverScrollableScrollPhysics(),
-          itemCount: requests.length,
+          itemCount: filteredRequests.length,
           itemBuilder: (context, index) {
-            final request = requests[index];
+            final request = filteredRequests[index];
             final donation = request.assignedDonationId != null
                 ? _donations[request.assignedDonationId!]
                 : null;
@@ -400,7 +552,28 @@ class _MyRequestsPageState extends State<MyRequestsPage> {
                     ),
                   ],
                 ),
-                if (request.status == RequestStatus.fulfilled) ...[
+                if (request.status == RequestStatus.pending ||
+                    request.status == RequestStatus.approved) ...[
+                  const SizedBox(height: 16),
+                  SizedBox(
+                    width: double.infinity,
+                    height: 48,
+                    child: OutlinedButton(
+                      onPressed: () => _cancelRequest(request),
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: Colors.red,
+                        side: const BorderSide(color: Colors.red),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                      ),
+                      child: const Text(
+                        'Cancel Request',
+                        style: TextStyle(fontWeight: FontWeight.bold),
+                      ),
+                    ),
+                  ),
+                ] else if (request.status == RequestStatus.fulfilled) ...[
                   const SizedBox(height: 16),
                   SizedBox(
                     width: double.infinity,
@@ -481,7 +654,6 @@ class _MyRequestsPageState extends State<MyRequestsPage> {
                       Expanded(
                         child: OutlinedButton(
                           onPressed: () {
-                            final auth = context.read<AuthState>();
                             Navigator.push(
                               context,
                               MaterialPageRoute(

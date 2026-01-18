@@ -5,6 +5,7 @@ import '../state/auth_state.dart';
 import '../services/donation_service.dart';
 import '../services/request_service.dart';
 import '../models/donation.dart';
+import 'donate_medicine_page.dart';
 
 class MyMedicinesPage extends StatefulWidget {
   const MyMedicinesPage({super.key});
@@ -23,14 +24,19 @@ class _MyMedicinesPageState extends State<MyMedicinesPage> {
   void initState() {
     super.initState();
     final auth = context.read<AuthState>();
-    _myMedicines = _donationService.getDonationsByDonor(auth.user!.userId);
-    _loadRequestCounts();
+    _loadMedicines(auth.user!.userId);
   }
 
-  Future<void> _loadRequestCounts() async {
-    final auth = context.read<AuthState>();
+  void _loadMedicines(String userId) {
+    setState(() {
+      _myMedicines = _donationService.getDonationsByDonor(userId);
+    });
+    _loadRequestCounts(userId);
+  }
+
+  Future<void> _loadRequestCounts(String userId) async {
     final donations = await _donationService.getDonationsByDonor(
-      auth.user!.userId,
+      userId,
     );
 
     for (final donation in donations) {
@@ -42,6 +48,59 @@ class _MyMedicinesPageState extends State<MyMedicinesPage> {
       } catch (e) {
         // Handle error silently
       }
+    }
+  }
+
+  Future<void> _deleteMedicine(Donation medicine) async {
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Delete Medicine'),
+        content: Text('Are you sure you want to delete ${medicine.medicineName}?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(context, true),
+            style: TextButton.styleFrom(foregroundColor: Colors.red),
+            child: const Text('Delete'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirm == true) {
+      try {
+        await _donationService.deleteDonation(medicine.donationId);
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Medicine deleted successfully')),
+          );
+          final auth = context.read<AuthState>();
+          _loadMedicines(auth.user!.userId);
+        }
+      } catch (e) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Error deleting medicine: $e')),
+          );
+        }
+      }
+    }
+  }
+
+  Future<void> _editMedicine(Donation medicine) async {
+    await Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => DonateMedicinePage(donationToEdit: medicine),
+      ),
+    );
+    if (mounted) {
+      final auth = context.read<AuthState>();
+      _loadMedicines(auth.user!.userId);
     }
   }
 
@@ -338,10 +397,6 @@ class _MyMedicinesPageState extends State<MyMedicinesPage> {
             padding: const EdgeInsets.all(12),
             decoration: BoxDecoration(
               color: Colors.grey.shade50,
-              borderRadius: const BorderRadius.only(
-                bottomLeft: Radius.circular(16),
-                bottomRight: Radius.circular(16),
-              ),
             ),
             child: Column(
               children: [
@@ -383,6 +438,34 @@ class _MyMedicinesPageState extends State<MyMedicinesPage> {
                       ),
                     ),
                   ],
+                ),
+              ],
+            ),
+          ),
+          // Actions section
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: const BorderRadius.only(
+                bottomLeft: Radius.circular(16),
+                bottomRight: Radius.circular(16),
+              ),
+              border: Border(top: BorderSide(color: Colors.grey.shade200)),
+            ),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.end,
+              children: [
+                TextButton.icon(
+                  onPressed: () => _editMedicine(medicine),
+                  icon: const Icon(Icons.edit, size: 18, color: Colors.blue),
+                  label: const Text('Edit', style: TextStyle(color: Colors.blue)),
+                ),
+                const SizedBox(width: 8),
+                TextButton.icon(
+                  onPressed: () => _deleteMedicine(medicine),
+                  icon: const Icon(Icons.delete, size: 18, color: Colors.red),
+                  label: const Text('Delete', style: TextStyle(color: Colors.red)),
                 ),
               ],
             ),

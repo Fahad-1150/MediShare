@@ -322,4 +322,13 @@ class RequestService {
   static double _toRadians(double degrees) {
     return degrees * pi / 180;
   }
+
+  /// Delete a request (admin only)
+  Future<void> deleteRequest(String requestId) async {
+    try {
+      await _supabase.from('requests').delete().eq('id', requestId);
+    } catch (e) {
+      throw Exception('Failed to delete request: $e');
+    }
+  }
 }

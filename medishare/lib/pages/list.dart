@@ -1,5 +1,9 @@
 import 'package:flutter/material.dart';
 import 'dart:convert';
+import 'dart:math';
+import 'package:geolocator/geolocator.dart';
+import 'package:provider/provider.dart';
+import '../state/auth_state.dart';
 import '../models/donation.dart';
 import '../services/donation_service.dart';
 
@@ -14,6 +18,10 @@ class _MedicineListPageState extends State<MedicineListPage> {
   final DonationService _donationService = DonationService();
   String searchTerm = '';
   String filterType = 'All';
+  String locationFilter = 'All'; // 'All', 'NearMe', or specific location
+  double? userLatitude;
+  double? userLongitude;
+  bool isLoadingLocation = false;
   late Future<List<Donation>> _medicinesFuture;
 
   @override
@@ -34,7 +42,81 @@ class _MedicineListPageState extends State<MedicineListPage> {
     ];
   }
 
-  List<Donation> _filterMedicines(List<Donation> medicines) {
+  Future<void> _getCurrentLocation() async {
+    try {
+      setState(() => isLoadingLocation = true);
+
+      bool serviceEnabled = await Geolocator.isLocationServiceEnabled();
+      if (!serviceEnabled) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Please enable location services')),
+          );
+        }
+        return;
+      }
+
+      LocationPermission permission = await Geolocator.checkPermission();
+      if (permission == LocationPermission.denied) {
+        permission = await Geolocator.requestPermission();
+        if (permission == LocationPermission.denied) {
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(content: Text('Location permission denied')),
+            );
+          }
+          return;
+        }
+      }
+
+      final Position position = await Geolocator.getCurrentPosition(
+        desiredAccuracy: LocationAccuracy.high,
+      );
+
+      setState(() {
+        userLatitude = position.latitude;
+        userLongitude = position.longitude;
+        locationFilter = 'NearMe';
+      });
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Location enabled! Showing nearby medicines'),
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Error: $e')));
+      }
+    } finally {
+      if (mounted) {
+        setState(() => isLoadingLocation = false);
+      }
+    }
+  }
+
+  double _calculateDistance(
+    double lat1,
+    double lon1,
+    double lat2,
+    double lon2,
+  ) {
+    const p = 0.017453292519943295;
+    final a =
+        0.5 -
+        cos((lat2 - lat1) * p) / 2 +
+        cos(lat1 * p) * cos(lat2 * p) * (1 - cos((lon2 - lon1) * p)) / 2;
+    return 12742 * asin(sqrt(a)); // 2 * R; R = 6371 km
+  }
+
+  List<Donation> _filterMedicines(
+    List<Donation> medicines,
+    String? currentUserId,
+  ) {
     return medicines.where((medicine) {
       final matchesSearch =
           medicine.medicineName.toLowerCase().contains(
@@ -50,16 +132,38 @@ class _MedicineListPageState extends State<MedicineListPage> {
       final matchesType =
           filterType == 'All' || medicine.medicineType == filterType;
 
+      // Location filter
+      bool matchesLocation = true;
+      if (locationFilter == 'NearMe' &&
+          userLatitude != null &&
+          userLongitude != null) {
+        final distance = _calculateDistance(
+          userLatitude!,
+          userLongitude!,
+          medicine.latitude,
+          medicine.longitude,
+        );
+        matchesLocation = distance <= 5; // 5 km radius
+      }
+
       // Only show approved and not expired medicines
       final isValid =
           medicine.status == DonationStatus.approved && !medicine.isExpired;
 
-      return matchesSearch && matchesType && isValid;
+      final isNotMine =
+          currentUserId == null || medicine.donorId != currentUserId;
+
+      return matchesSearch &&
+          matchesType &&
+          matchesLocation &&
+          isValid &&
+          isNotMine;
     }).toList();
   }
 
   @override
   Widget build(BuildContext context) {
+    final auth = context.watch<AuthState>();
     final screenWidth = MediaQuery.of(context).size.width;
     final crossAxisCount = screenWidth < 400 ? 1 : 2;
 
@@ -82,6 +186,8 @@ class _MedicineListPageState extends State<MedicineListPage> {
             _searchBar(),
             const SizedBox(height: 16),
             _filterChips(),
+            const SizedBox(height: 16),
+            _locationFilter(),
             const SizedBox(height: 24),
             FutureBuilder<List<Donation>>(
               future: _medicinesFuture,
@@ -100,7 +206,7 @@ class _MedicineListPageState extends State<MedicineListPage> {
                 }
 
                 final medicines = snapshot.data ?? [];
-                final filtered = _filterMedicines(medicines);
+                final filtered = _filterMedicines(medicines, auth.user?.userId);
 
                 if (filtered.isEmpty) {
                   return _emptyState();
@@ -174,6 +280,104 @@ class _MedicineListPageState extends State<MedicineListPage> {
           );
         }).toList(),
       ),
+    );
+  }
+
+  Widget _locationFilter() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Text(
+          'Filter by Location',
+          style: TextStyle(
+            fontSize: 12,
+            fontWeight: FontWeight.w600,
+            color: Colors.grey,
+          ),
+        ),
+        const SizedBox(width: 10),
+        Row(
+          children: [
+            Expanded(
+              child: ChoiceChip(
+                label: const Text('All Locations'),
+                selected: locationFilter == 'All',
+                onSelected: (_) => setState(() {
+                  locationFilter = 'All';
+                  userLatitude = null;
+                  userLongitude = null;
+                }),
+                selectedColor: Colors.blue,
+                backgroundColor: Colors.white,
+                labelStyle: TextStyle(
+                  color: locationFilter == 'All'
+                      ? Colors.white
+                      : Colors.black54,
+                  fontWeight: FontWeight.bold,
+                  fontSize: 12,
+                ),
+                shape: StadiumBorder(
+                  side: BorderSide(
+                    color: locationFilter == 'All'
+                        ? Colors.blue
+                        : Colors.grey.shade300,
+                  ),
+                ),
+              ),
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: ElevatedButton.icon(
+                onPressed: isLoadingLocation ? null : _getCurrentLocation,
+                icon: isLoadingLocation
+                    ? SizedBox(
+                        width: 16,
+                        height: 16,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          valueColor: AlwaysStoppedAnimation<Color>(
+                            locationFilter == 'NearMe'
+                                ? Colors.white
+                                : Colors.blue,
+                          ),
+                        ),
+                      )
+                    : const Icon(Icons.location_on),
+                label: Text(
+                  locationFilter == 'NearMe' ? 'Near Me ✓' : 'Near Me',
+                  style: const TextStyle(fontSize: 11),
+                ),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: locationFilter == 'NearMe'
+                      ? Colors.green
+                      : Colors.white,
+                  foregroundColor: locationFilter == 'NearMe'
+                      ? Colors.white
+                      : Colors.blue,
+                  side: BorderSide(
+                    color: locationFilter == 'NearMe'
+                        ? Colors.green
+                        : Colors.blue,
+                  ),
+                  padding: const EdgeInsets.symmetric(vertical: 10),
+                ),
+              ),
+            ),
+          ],
+        ),
+        if (locationFilter == 'NearMe' && userLatitude != null)
+          Padding(
+            padding: const EdgeInsets.only(top: 8),
+            child: Text(
+              'Showing medicines within 5 km',
+              style: TextStyle(
+                fontSize: 10,
+                color: Colors.green.shade600,
+                fontStyle: FontStyle.italic,
+              ),
+            ),
+          ),
+      ],
     );
   }
 

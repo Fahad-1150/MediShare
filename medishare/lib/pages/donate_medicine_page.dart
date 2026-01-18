@@ -6,10 +6,13 @@ import 'package:image_picker/image_picker.dart';
 import 'package:medishare/services/donation_service.dart';
 import 'package:provider/provider.dart';
 import 'package:medishare/state/auth_state.dart';
+import 'package:medishare/models/donation.dart';
 import 'location_picker_page.dart';
 
 class DonateMedicinePage extends StatefulWidget {
-  const DonateMedicinePage({super.key});
+  final Donation? donationToEdit;
+
+  const DonateMedicinePage({super.key, this.donationToEdit});
 
   @override
   State<DonateMedicinePage> createState() => _DonateMedicinePageState();
@@ -44,6 +47,22 @@ class _DonateMedicinePageState extends State<DonateMedicinePage> {
     'Spray',
     'Fahad',
   ];
+
+  @override
+  void initState() {
+    super.initState();
+    if (widget.donationToEdit != null) {
+      final d = widget.donationToEdit!;
+      _medicineNameController.text = d.medicineName;
+      _selectedMedicineType = d.medicineType;
+      _quantityController.text = d.quantity.toString();
+      _selectedExpiryDate = d.expiryDate;
+      _locationController.text = d.donorLocation;
+      _selectedLatitude = d.latitude;
+      _selectedLongitude = d.longitude;
+      _descriptionController.text = d.description ?? '';
+    }
+  }
 
   Future<void> _pickImage() async {
     final pickedFile = await _imagePicker.pickImage(
@@ -124,19 +143,35 @@ class _DonateMedicinePageState extends State<DonateMedicinePage> {
         photoUrl = base64Encode(imageBytes);
       }
 
-      await _donationService.createDonation(
-        donorId: auth.user!.userId,
-        medicineName: _medicineNameController.text,
-        medicineType: _selectedMedicineType!,
-        quantity: int.parse(_quantityController.text),
-        expiryDate: _selectedExpiryDate!,
-        donorLocation: _locationController.text,
-        latitude: _selectedLatitude,
-        longitude: _selectedLongitude,
-        photoUrl: photoUrl,
-        dosage: _dosageController.text,
-        description: _descriptionController.text,
-      );
+      if (widget.donationToEdit != null) {
+        await _donationService.updateDonation(
+          donationId: widget.donationToEdit!.donationId,
+          medicineName: _medicineNameController.text,
+          medicineType: _selectedMedicineType!,
+          quantity: int.parse(_quantityController.text),
+          expiryDate: _selectedExpiryDate!,
+          donorLocation: _locationController.text,
+          latitude: _selectedLatitude,
+          longitude: _selectedLongitude,
+          photoUrl: photoUrl,
+          dosage: _dosageController.text,
+          description: _descriptionController.text,
+        );
+      } else {
+        await _donationService.createDonation(
+          donorId: auth.user!.userId,
+          medicineName: _medicineNameController.text,
+          medicineType: _selectedMedicineType!,
+          quantity: int.parse(_quantityController.text),
+          expiryDate: _selectedExpiryDate!,
+          donorLocation: _locationController.text,
+          latitude: _selectedLatitude,
+          longitude: _selectedLongitude,
+          photoUrl: photoUrl,
+          dosage: _dosageController.text,
+          description: _descriptionController.text,
+        );
+      }
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -171,7 +206,9 @@ class _DonateMedicinePageState extends State<DonateMedicinePage> {
       backgroundColor: Colors.white,
       appBar: AppBar(
         backgroundColor: const Color.fromARGB(255, 4, 113, 78),
-        title: const Text('Donate Medicine'),
+        title: Text(
+          widget.donationToEdit != null ? 'Edit Medicine' : 'Donate Medicine',
+        ),
         elevation: 0,
       ),
       body: SingleChildScrollView(
@@ -232,7 +269,7 @@ class _DonateMedicinePageState extends State<DonateMedicinePage> {
                     ),
                   ],
                 ),
-                if (_selectedImage != null) ...[
+                if (_selectedImage != null || widget.donationToEdit?.photoUrl != null) ...[
                   const SizedBox(height: 12),
                   Container(
                     height: 200,
@@ -240,10 +277,14 @@ class _DonateMedicinePageState extends State<DonateMedicinePage> {
                     decoration: BoxDecoration(
                       borderRadius: BorderRadius.circular(12),
                       image: DecorationImage(
-                        image: kIsWeb
-                            ? NetworkImage(_selectedImage!.path)
-                            : FileImage(File(_selectedImage!.path))
-                                  as ImageProvider,
+                        image: _selectedImage != null
+                            ? (kIsWeb
+                                ? NetworkImage(_selectedImage!.path)
+                                : FileImage(File(_selectedImage!.path))
+                                    as ImageProvider)
+                            : MemoryImage(
+                                base64Decode(widget.donationToEdit!.photoUrl!),
+                              ),
                         fit: BoxFit.cover,
                       ),
                     ),
@@ -506,7 +547,7 @@ class _DonateMedicinePageState extends State<DonateMedicinePage> {
                             ),
                           )
                         : const Text(
-                            'Submit Donation',
+                            'Submit',
                             style: TextStyle(
                               fontSize: 16,
                               fontWeight: FontWeight.bold,

@@ -224,6 +224,7 @@ class UserService {
         'phone': user.phone,
         'location_url': user.location,
         'role': user.role == UserRole.admin ? 'admin' : 'user',
+        'is_verified': user.isVerified,
       };
       final res = await _supabase
           .from('users_profile')
@@ -334,6 +335,15 @@ class UserService {
       }
     } catch (e) {
       throw Exception('Failed to add request: $e');
+    }
+  }
+
+  /// Delete a user (admin only)
+  Future<void> deleteUser(String userId) async {
+    try {
+      await _supabase.from('users_profile').delete().eq('id', userId);
+    } catch (e) {
+      throw Exception('Failed to delete user: $e');
     }
   }
 }

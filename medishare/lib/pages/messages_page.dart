@@ -36,6 +36,9 @@ class _MessagesPageState extends State<MessagesPage> {
   final ChatService _chatService = ChatService();
   final UserService _userService = UserService();
   late Future<List<ConversationItem>> _conversations;
+  String searchTerm = '';
+  String readFilter = 'All'; // 'All', 'Unread', 'Read'
+  final TextEditingController _searchController = TextEditingController();
 
   @override
   void initState() {
@@ -59,9 +62,6 @@ class _MessagesPageState extends State<MessagesPage> {
         final otherUserId = msg.senderId == userId
             ? msg.recipientId
             : msg.senderId;
-        final otherUserName = msg.senderId == userId
-            ? msg.senderName
-            : msg.recipientId;
 
         if (!conversationsByUser.containsKey(otherUserId)) {
           conversationsByUser[otherUserId] = [];
@@ -132,6 +132,33 @@ class _MessagesPageState extends State<MessagesPage> {
   }
 
   @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
+  }
+
+  List<ConversationItem> _filterConversations(
+    List<ConversationItem> conversations,
+  ) {
+    return conversations.where((conversation) {
+      // Search filter
+      final matchesSearch = conversation.otherUserName.toLowerCase().contains(
+        searchTerm.toLowerCase(),
+      );
+
+      // Read/Unread filter
+      bool matchesReadFilter = true;
+      if (readFilter == 'Unread') {
+        matchesReadFilter = conversation.unreadCount > 0;
+      } else if (readFilter == 'Read') {
+        matchesReadFilter = conversation.unreadCount == 0;
+      }
+
+      return matchesSearch && matchesReadFilter;
+    }).toList();
+  }
+
+  @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
@@ -171,6 +198,7 @@ class _MessagesPageState extends State<MessagesPage> {
           }
 
           final conversations = snapshot.data ?? [];
+          final filteredConversations = _filterConversations(conversations);
 
           if (conversations.isEmpty) {
             return Center(
@@ -201,15 +229,79 @@ class _MessagesPageState extends State<MessagesPage> {
             );
           }
 
-          return RefreshIndicator(
-            onRefresh: () async => _refreshConversations(),
-            child: ListView.builder(
-              itemCount: conversations.length,
-              itemBuilder: (context, index) {
-                final conversation = conversations[index];
-                return _buildConversationTile(conversation);
-              },
-            ),
+          if (filteredConversations.isEmpty && conversations.isNotEmpty) {
+            return SingleChildScrollView(
+              child: Column(
+                children: [
+                  Padding(
+                    padding: const EdgeInsets.all(16),
+                    child: Column(
+                      children: [
+                        _buildSearchBar(),
+                        const SizedBox(height: 12),
+                        _buildReadFilter(),
+                      ],
+                    ),
+                  ),
+                  Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 48),
+                    child: Center(
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Icon(
+                            Icons.search_off,
+                            size: 64,
+                            color: Colors.grey.shade300,
+                          ),
+                          const SizedBox(height: 16),
+                          const Text(
+                            'No conversations found',
+                            style: TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.bold,
+                              color: Colors.black87,
+                            ),
+                          ),
+                          const SizedBox(height: 8),
+                          Text(
+                            'Try adjusting your search or filter',
+                            style: TextStyle(color: Colors.grey.shade600),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            );
+          }
+
+          return Column(
+            children: [
+              Padding(
+                padding: const EdgeInsets.all(16),
+                child: Column(
+                  children: [
+                    _buildSearchBar(),
+                    const SizedBox(height: 12),
+                    _buildReadFilter(),
+                  ],
+                ),
+              ),
+              Expanded(
+                child: RefreshIndicator(
+                  onRefresh: () async => _refreshConversations(),
+                  child: ListView.builder(
+                    itemCount: filteredConversations.length,
+                    itemBuilder: (context, index) {
+                      final conversation = filteredConversations[index];
+                      return _buildConversationTile(conversation);
+                    },
+                  ),
+                ),
+              ),
+            ],
           );
         },
       ),
@@ -319,5 +411,63 @@ class _MessagesPageState extends State<MessagesPage> {
     } else {
       return '${dateTime.day}/${dateTime.month}';
     }
+  }
+
+  Widget _buildSearchBar() {
+    return TextField(
+      controller: _searchController,
+      decoration: InputDecoration(
+        hintText: 'Search by name...',
+        prefixIcon: const Icon(Icons.search),
+        filled: true,
+        fillColor: Colors.grey.shade100,
+        border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: BorderSide(color: Colors.grey.shade300),
+        ),
+      ),
+      onChanged: (value) {
+        setState(() => searchTerm = value);
+      },
+    );
+  }
+
+  Widget _buildReadFilter() {
+    return SingleChildScrollView(
+      scrollDirection: Axis.horizontal,
+      child: Row(
+        children: ['All', 'Unread', 'Read'].map((filter) {
+          final isActive = readFilter == filter;
+          Color getFilterColor(String f) {
+            if (f == 'Unread') return Colors.red;
+            if (f == 'Read') return Colors.green;
+            return Colors.grey;
+          }
+
+          return Padding(
+            padding: const EdgeInsets.only(right: 10),
+            child: ChoiceChip(
+              label: Text(filter),
+              selected: isActive,
+              onSelected: (_) => setState(() => readFilter = filter),
+              selectedColor: getFilterColor(filter),
+              backgroundColor: Colors.white,
+              labelStyle: TextStyle(
+                color: isActive ? Colors.white : Colors.black54,
+                fontWeight: FontWeight.bold,
+                fontSize: 12,
+              ),
+              shape: StadiumBorder(
+                side: BorderSide(
+                  color: isActive
+                      ? getFilterColor(filter)
+                      : Colors.grey.shade300,
+                ),
+              ),
+            ),
+          );
+        }).toList(),
+      ),
+    );
   }
 }

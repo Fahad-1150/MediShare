@@ -134,6 +134,22 @@ class ChatService {
     }
   }
 
+  /// Get all messages (admin only)
+  Future<List<ChatMessage>> getAllMessages() async {
+    try {
+      final response = await _supabase
+          .from('chat_messages')
+          .select()
+          .order('created_at', ascending: false);
+
+      return (response as List)
+          .map((row) => _mapRowToChatMessage(row as Map<String, dynamic>))
+          .toList();
+    } catch (e) {
+      throw Exception('Failed to fetch all messages: $e');
+    }
+  }
+
   /// Get all messages involving a user (for messages list)
   Future<List<ChatMessage>> getAllUserMessages(String userId) async {
     try {

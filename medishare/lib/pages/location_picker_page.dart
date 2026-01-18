@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart' as latlng;
 import 'package:geolocator/geolocator.dart';
+import 'package:geocoding/geocoding.dart';
 
 class LocationPickerPage extends StatefulWidget {
   final double initialLatitude;
@@ -31,6 +32,29 @@ class _LocationPickerPageState extends State<LocationPickerPage> {
       widget.initialLatitude,
       widget.initialLongitude,
     );
+    _getAddressFromLatLng(
+      _selectedLocation.latitude,
+      _selectedLocation.longitude,
+    );
+  }
+
+  Future<void> _getAddressFromLatLng(double lat, double lng) async {
+    try {
+      List<Placemark> placemarks = await placemarkFromCoordinates(lat, lng);
+      if (placemarks.isNotEmpty && mounted) {
+        Placemark place = placemarks[0];
+        setState(() {
+          _selectedLocationName = [
+            place.street,
+            place.subLocality,
+            place.locality,
+            place.country,
+          ].where((e) => e != null && e.isNotEmpty).join(', ');
+        });
+      }
+    } catch (e) {
+      debugPrint('Error getting address: $e');
+    }
   }
 
   Future<void> _getCurrentLocation() async {
@@ -72,6 +96,7 @@ class _LocationPickerPageState extends State<LocationPickerPage> {
       });
 
       _mapController.move(_selectedLocation, 15);
+      _getAddressFromLatLng(position.latitude, position.longitude);
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(
@@ -159,9 +184,9 @@ class _LocationPickerPageState extends State<LocationPickerPage> {
               onTap: (tapPosition, point) {
                 setState(() {
                   _selectedLocation = point;
-                  _selectedLocationName =
-                      'Lat: ${point.latitude.toStringAsFixed(4)}, Lng: ${point.longitude.toStringAsFixed(4)}';
+                  _selectedLocationName = 'Fetching address...';
                 });
+                _getAddressFromLatLng(point.latitude, point.longitude);
               },
             ),
             children: [
@@ -289,13 +314,15 @@ class _LocationPickerPageState extends State<LocationPickerPage> {
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
                                 Text(
-                                  'Latitude: ${_selectedLocation.latitude.toStringAsFixed(6)}',
-                                  style: const TextStyle(fontSize: 12),
-                                ),
-                                const SizedBox(height: 2),
-                                Text(
-                                  'Longitude: ${_selectedLocation.longitude.toStringAsFixed(6)}',
-                                  style: const TextStyle(fontSize: 12),
+                                  _selectedLocationName.isNotEmpty
+                                      ? _selectedLocationName
+                                      : 'Lat: ${_selectedLocation.latitude.toStringAsFixed(4)}, Lng: ${_selectedLocation.longitude.toStringAsFixed(4)}',
+                                  style: const TextStyle(
+                                    fontSize: 14,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                  maxLines: 2,
+                                  overflow: TextOverflow.ellipsis,
                                 ),
                               ],
                             ),
@@ -324,7 +351,8 @@ class _LocationPickerPageState extends State<LocationPickerPage> {
                           child: ElevatedButton(
                             onPressed: () {
                               String locationName = _selectedLocationName;
-                              if (locationName.isEmpty) {
+                              if (locationName.isEmpty ||
+                                  locationName == 'Fetching address...') {
                                 locationName =
                                     'Lat: ${_selectedLocation.latitude.toStringAsFixed(4)}, Lng: ${_selectedLocation.longitude.toStringAsFixed(4)}';
                               }

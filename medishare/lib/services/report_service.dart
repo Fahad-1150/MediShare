@@ -216,4 +216,13 @@ class ReportService {
       throw Exception('Failed to get reports stats: $e');
     }
   }
+
+  /// Delete a report (admin only)
+  Future<void> deleteReport(String reportId) async {
+    try {
+      await _supabase.from('reports').delete().eq('id', reportId);
+    } catch (e) {
+      throw Exception('Failed to delete report: $e');
+    }
+  }
 }

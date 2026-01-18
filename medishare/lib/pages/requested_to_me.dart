@@ -727,7 +727,7 @@ class _RequestedToMePageState extends State<RequestedToMePage> {
                           height: 48,
                           child: ElevatedButton(
                             onPressed: donation != null
-                                ? () => _fulfillRequest(request, donation!)
+                                ? () => _fulfillRequest(request, donation)
                                 : null,
                             style: ElevatedButton.styleFrom(
                               backgroundColor: donation != null

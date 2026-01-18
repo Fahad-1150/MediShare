@@ -225,6 +225,56 @@ class DonationService {
     }
   }
 
+  /// Delete a donation
+  Future<void> deleteDonation(String donationId) async {
+    try {
+      await _supabase.from('donations').delete().eq('id', donationId);
+    } catch (e) {
+      throw Exception('Failed to delete donation: $e');
+    }
+  }
+
+  /// Update donation details
+  Future<void> updateDonation({
+    required String donationId,
+    required String medicineName,
+    required String medicineType,
+    required int quantity,
+    required DateTime expiryDate,
+    required String donorLocation,
+    required double latitude,
+    required double longitude,
+    String? photoUrl,
+    String? dosage,
+    String? description,
+  }) async {
+    try {
+      final updateData = {
+        'medicine_name': medicineName,
+        'medicine_type': medicineType,
+        'quantity': quantity,
+        'expiry_date': expiryDate.toIso8601String().split('T')[0],
+        'donor_location': donorLocation,
+        'latitude': latitude,
+        'longitude': longitude,
+        'dosage': dosage,
+        'description': description,
+        'updated_at': DateTime.now().toIso8601String(),
+      };
+
+      if (photoUrl != null) {
+        updateData['photo_url'] = photoUrl;
+      }
+
+      await _supabase
+          .from('donations')
+          .update(updateData)
+          .eq('id', donationId);
+    } catch (e) {
+      throw Exception('Failed to update donation: $e');
+    }
+  }
+
   /// Claim a donation
   Future<void> claimDonation(String donationId, String claimerId) async {
     try {
