@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'dart:convert';
 import 'package:provider/provider.dart';
 import '../state/auth_state.dart';
 import '../services/donation_service.dart';
@@ -235,11 +236,7 @@ class _MyMedicinesPageState extends State<MyMedicinesPage> {
                     borderRadius: BorderRadius.circular(12),
                     border: Border.all(color: Colors.grey.shade300),
                   ),
-                  child: Icon(
-                    Icons.medication,
-                    color: Colors.grey.shade400,
-                    size: 32,
-                  ),
+                  child: _buildMedicineImage(medicine.photoUrl),
                 ),
                 const SizedBox(width: 16),
                 Expanded(
@@ -423,6 +420,52 @@ class _MyMedicinesPageState extends State<MyMedicinesPage> {
         return Colors.blue;
       case DonationStatus.expired:
         return Colors.grey;
+    }
+  }
+
+  Widget _buildMedicineImage(String? photoUrl) {
+    if (photoUrl == null || photoUrl.isEmpty) {
+      return Icon(Icons.medication, color: Colors.grey.shade400, size: 32);
+    }
+
+    try {
+      // Check if it's a valid base64 string
+      if (!_isValidBase64(photoUrl)) {
+        return Icon(Icons.medication, color: Colors.grey.shade400, size: 32);
+      }
+
+      return ClipRRect(
+        borderRadius: BorderRadius.circular(12),
+        child: Image.memory(
+          base64Decode(photoUrl),
+          fit: BoxFit.cover,
+          errorBuilder: (context, error, stackTrace) {
+            print('Error decoding image: $error');
+            return Icon(
+              Icons.medication,
+              color: Colors.grey.shade400,
+              size: 32,
+            );
+          },
+        ),
+      );
+    } catch (e) {
+      print('Exception in _buildMedicineImage: $e');
+      return Icon(Icons.medication, color: Colors.grey.shade400, size: 32);
+    }
+  }
+
+  bool _isValidBase64(String str) {
+    try {
+      if (str.isEmpty) return false;
+      // Check if string contains only valid base64 characters
+      final base64Pattern = RegExp(r'^[A-Za-z0-9+/]*={0,2}$');
+      if (!base64Pattern.hasMatch(str)) return false;
+      // Try to decode
+      base64Decode(str);
+      return true;
+    } catch (e) {
+      return false;
     }
   }
 }

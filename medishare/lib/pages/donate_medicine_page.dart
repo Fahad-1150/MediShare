@@ -1,4 +1,6 @@
 import 'dart:io';
+import 'dart:convert';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:medishare/services/donation_service.dart';
@@ -19,7 +21,7 @@ class _DonateMedicinePageState extends State<DonateMedicinePage> {
   final _imagePicker = ImagePicker();
 
   String? _selectedMedicineType;
-  File? _selectedImage;
+  XFile? _selectedImage;
   DateTime? _selectedExpiryDate;
   bool _isSubmitting = false;
   double _selectedLatitude = 24.8607; // Default: Karachi
@@ -48,14 +50,14 @@ class _DonateMedicinePageState extends State<DonateMedicinePage> {
       source: ImageSource.gallery,
     );
     if (pickedFile != null) {
-      setState(() => _selectedImage = File(pickedFile.path));
+      setState(() => _selectedImage = pickedFile);
     }
   }
 
   Future<void> _captureImage() async {
     final pickedFile = await _imagePicker.pickImage(source: ImageSource.camera);
     if (pickedFile != null) {
-      setState(() => _selectedImage = File(pickedFile.path));
+      setState(() => _selectedImage = pickedFile);
     }
   }
 
@@ -72,7 +74,7 @@ class _DonateMedicinePageState extends State<DonateMedicinePage> {
   }
 
   Future<void> _openLocationPicker() async {
-    final result = await Navigator.push<Map<String, double>>(
+    final result = await Navigator.push<Map<String, dynamic>>(
       context,
       MaterialPageRoute(
         builder: (context) => LocationPickerPage(
@@ -84,8 +86,9 @@ class _DonateMedicinePageState extends State<DonateMedicinePage> {
 
     if (result != null) {
       setState(() {
-        _selectedLatitude = result['latitude'] ?? _selectedLatitude;
-        _selectedLongitude = result['longitude'] ?? _selectedLongitude;
+        _selectedLatitude = result['latitude'] as double? ?? _selectedLatitude;
+        _selectedLongitude =
+            result['longitude'] as double? ?? _selectedLongitude;
         final locationName = result['locationName'] as String?;
         if (locationName != null && locationName.isNotEmpty) {
           _locationController.text = locationName;
@@ -115,11 +118,10 @@ class _DonateMedicinePageState extends State<DonateMedicinePage> {
       }
 
       String? photoUrl;
-      // In production, upload image to Supabase storage
-      // For now, we'll just use a placeholder
+      // Convert image to base64
       if (_selectedImage != null) {
-        // TODO: Upload to Supabase storage
-        photoUrl = 'https://via.placeholder.com/300';
+        final imageBytes = await _selectedImage!.readAsBytes();
+        photoUrl = base64Encode(imageBytes);
       }
 
       await _donationService.createDonation(
@@ -238,7 +240,10 @@ class _DonateMedicinePageState extends State<DonateMedicinePage> {
                     decoration: BoxDecoration(
                       borderRadius: BorderRadius.circular(12),
                       image: DecorationImage(
-                        image: FileImage(_selectedImage!),
+                        image: kIsWeb
+                            ? NetworkImage(_selectedImage!.path)
+                            : FileImage(File(_selectedImage!.path))
+                                  as ImageProvider,
                         fit: BoxFit.cover,
                       ),
                     ),

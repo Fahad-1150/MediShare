@@ -157,7 +157,11 @@ class _LocationPickerPageState extends State<LocationPickerPage> {
               initialCenter: _selectedLocation,
               initialZoom: 15,
               onTap: (tapPosition, point) {
-                setState(() => _selectedLocation = point);
+                setState(() {
+                  _selectedLocation = point;
+                  _selectedLocationName =
+                      'Lat: ${point.latitude.toStringAsFixed(4)}, Lng: ${point.longitude.toStringAsFixed(4)}';
+                });
               },
             ),
             children: [
@@ -319,10 +323,16 @@ class _LocationPickerPageState extends State<LocationPickerPage> {
                         Expanded(
                           child: ElevatedButton(
                             onPressed: () {
+                              String locationName = _selectedLocationName;
+                              if (locationName.isEmpty) {
+                                locationName =
+                                    'Lat: ${_selectedLocation.latitude.toStringAsFixed(4)}, Lng: ${_selectedLocation.longitude.toStringAsFixed(4)}';
+                              }
+
                               Navigator.pop(context, {
                                 'latitude': _selectedLocation.latitude,
                                 'longitude': _selectedLocation.longitude,
-                                'locationName': _selectedLocationName,
+                                'locationName': locationName,
                               });
                             },
                             style: ElevatedButton.styleFrom(

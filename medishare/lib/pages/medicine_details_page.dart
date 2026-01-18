@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'dart:convert';
 import 'package:medishare/models/donation.dart';
 import 'package:medishare/services/request_service.dart';
 import 'package:medishare/services/user_service.dart';
@@ -300,22 +301,7 @@ class _MedicineDetailsPageState extends State<MedicineDetailsPage> {
                     style: TextStyle(fontWeight: FontWeight.w500),
                   ),
                   const SizedBox(height: 8),
-                  ClipRRect(
-                    borderRadius: BorderRadius.circular(8),
-                    child: Image.network(
-                      widget.donation.photoUrl!,
-                      height: 150,
-                      width: double.infinity,
-                      fit: BoxFit.cover,
-                      errorBuilder: (context, error, stackTrace) {
-                        return Container(
-                          height: 150,
-                          color: Colors.grey.shade200,
-                          child: const Icon(Icons.broken_image, size: 50),
-                        );
-                      },
-                    ),
-                  ),
+                  _buildPhotoWidget(widget.donation.photoUrl!),
                 ],
               ),
             ),
@@ -409,6 +395,58 @@ class _MedicineDetailsPageState extends State<MedicineDetailsPage> {
         ],
       ),
     );
+  }
+
+  Widget _buildPhotoWidget(String photoUrl) {
+    try {
+      // Check if it's a valid base64 string
+      if (!_isValidBase64(photoUrl)) {
+        return Container(
+          height: 150,
+          color: Colors.grey.shade200,
+          child: const Icon(Icons.broken_image, size: 50),
+        );
+      }
+
+      return ClipRRect(
+        borderRadius: BorderRadius.circular(8),
+        child: Image.memory(
+          base64Decode(photoUrl),
+          height: 150,
+          width: double.infinity,
+          fit: BoxFit.cover,
+          errorBuilder: (context, error, stackTrace) {
+            print('Error decoding image: $error');
+            return Container(
+              height: 150,
+              color: Colors.grey.shade200,
+              child: const Icon(Icons.broken_image, size: 50),
+            );
+          },
+        ),
+      );
+    } catch (e) {
+      print('Exception in _buildPhotoWidget: $e');
+      return Container(
+        height: 150,
+        color: Colors.grey.shade200,
+        child: const Icon(Icons.broken_image, size: 50),
+      );
+    }
+  }
+
+  bool _isValidBase64(String str) {
+    try {
+      if (str.isEmpty) return false;
+      // Check if string contains only valid base64 characters
+      final base64Pattern = RegExp(r'^[A-Za-z0-9+/]*={0,2}$');
+      if (!base64Pattern.hasMatch(str)) return false;
+      // Try to decode
+      base64Decode(str);
+      return true;
+    } catch (e) {
+      return false;
+    }
   }
 }
 
