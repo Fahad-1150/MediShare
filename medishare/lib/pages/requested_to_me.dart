@@ -220,6 +220,29 @@ class _RequestedToMePageState extends State<RequestedToMePage> {
     }
   }
 
+  Future<void> _cancelApprovedRequest(MedicineRequest request) async {
+    try {
+      await _requestService.updateRequestStatus(
+        request.requestId,
+        RequestStatus.cancelled,
+      );
+
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('Request cancelled')));
+        final auth = context.read<AuthState>();
+        setState(() {
+          _requests = _loadRequests(auth.user!.userId);
+        });
+      }
+    } catch (e) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Error: $e')));
+    }
+  }
+
   Future<void> _fulfillRequest(
     MedicineRequest request,
     Donation donation,
@@ -727,7 +750,7 @@ class _RequestedToMePageState extends State<RequestedToMePage> {
                           ),
                         ),
                       ),
-                      const SizedBox(width: 12),
+                      const SizedBox(width: 8),
                       Expanded(
                         child: SizedBox(
                           height: 48,
@@ -754,6 +777,26 @@ class _RequestedToMePageState extends State<RequestedToMePage> {
                             ),
                             child: const Text(
                               'Chat',
+                              style: TextStyle(fontWeight: FontWeight.bold),
+                            ),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: SizedBox(
+                          height: 48,
+                          child: OutlinedButton(
+                            onPressed: () => _cancelApprovedRequest(request),
+                            style: OutlinedButton.styleFrom(
+                              foregroundColor: Colors.red,
+                              side: const BorderSide(color: Colors.red),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                            ),
+                            child: const Text(
+                              'Cancel',
                               style: TextStyle(fontWeight: FontWeight.bold),
                             ),
                           ),

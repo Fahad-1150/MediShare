@@ -1,6 +1,7 @@
 import '../models/request.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'dart:math';
+import 'donation_service.dart';
 
 /// Service for managing medicine requests using Supabase
 class RequestService {
@@ -185,6 +186,12 @@ class RequestService {
     String? assignedDonationId,
   }) async {
     try {
+      // Get the request first to know its current state
+      final request = await getRequestById(requestId);
+      if (request == null) {
+        throw Exception('Request not found');
+      }
+
       final statusStr = status.toString().split('.').last;
       final updateData = {
         'status': statusStr,
@@ -195,6 +202,48 @@ class RequestService {
       };
 
       await _supabase.from('requests').update(updateData).eq('id', requestId);
+
+      // If approving a request with an assigned donation, reduce the donation quantity
+      if (status == RequestStatus.approved &&
+          (assignedDonationId != null || request.assignedDonationId != null)) {
+        final donationId = assignedDonationId ?? request.assignedDonationId!;
+        final donationService = DonationService();
+
+        // Reduce the donation quantity by the requested amount
+        try {
+          await donationService.reduceDonationQuantity(
+            donationId,
+            request.quantity,
+          );
+        } catch (e) {
+          // Log the error but don't fail the request status update
+          // as the status has already been updated
+          print('Error reducing donation quantity: $e');
+        }
+      }
+
+      // If cancelling a request that was approved, restore the donation quantity
+      if (status == RequestStatus.cancelled &&
+          (request.status == RequestStatus.approved ||
+              request.status == RequestStatus.fulfilled) &&
+          request.assignedDonationId != null) {
+        final donationService = DonationService();
+
+        try {
+          // Get current donation and restore quantity
+          final donation = await donationService.getDonationById(
+            request.assignedDonationId!,
+          );
+          if (donation != null) {
+            await donationService.updateDonationQuantity(
+              request.assignedDonationId!,
+              donation.quantity + request.quantity,
+            );
+          }
+        } catch (e) {
+          print('Error restoring donation quantity: $e');
+        }
+      }
     } catch (e) {
       throw Exception('Failed to update request status: $e');
     }

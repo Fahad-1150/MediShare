@@ -2,6 +2,9 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:medishare/services/donation_service.dart';
+import 'package:provider/provider.dart';
+import 'package:medishare/state/auth_state.dart';
+import 'location_picker_page.dart';
 
 class DonateMedicinePage extends StatefulWidget {
   const DonateMedicinePage({super.key});
@@ -19,6 +22,8 @@ class _DonateMedicinePageState extends State<DonateMedicinePage> {
   File? _selectedImage;
   DateTime? _selectedExpiryDate;
   bool _isSubmitting = false;
+  double _selectedLatitude = 24.8607; // Default: Karachi
+  double _selectedLongitude = 67.0011;
 
   final _medicineNameController = TextEditingController();
   final _quantityController = TextEditingController();
@@ -35,7 +40,7 @@ class _DonateMedicinePageState extends State<DonateMedicinePage> {
     'Cream',
     'Ointment',
     'Spray',
-    'Other',
+    'Fahad',
   ];
 
   Future<void> _pickImage() async {
@@ -66,6 +71,29 @@ class _DonateMedicinePageState extends State<DonateMedicinePage> {
     }
   }
 
+  Future<void> _openLocationPicker() async {
+    final result = await Navigator.push<Map<String, double>>(
+      context,
+      MaterialPageRoute(
+        builder: (context) => LocationPickerPage(
+          initialLatitude: _selectedLatitude,
+          initialLongitude: _selectedLongitude,
+        ),
+      ),
+    );
+
+    if (result != null) {
+      setState(() {
+        _selectedLatitude = result['latitude'] ?? _selectedLatitude;
+        _selectedLongitude = result['longitude'] ?? _selectedLongitude;
+        final locationName = result['locationName'] as String?;
+        if (locationName != null && locationName.isNotEmpty) {
+          _locationController.text = locationName;
+        }
+      });
+    }
+  }
+
   Future<void> _submitDonation() async {
     if (!_formKey.currentState!.validate()) return;
     if (_selectedExpiryDate == null) {
@@ -78,6 +106,14 @@ class _DonateMedicinePageState extends State<DonateMedicinePage> {
     try {
       setState(() => _isSubmitting = true);
 
+      final auth = context.read<AuthState>();
+      if (auth.user == null) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('Please login to donate')));
+        return;
+      }
+
       String? photoUrl;
       // In production, upload image to Supabase storage
       // For now, we'll just use a placeholder
@@ -87,14 +123,14 @@ class _DonateMedicinePageState extends State<DonateMedicinePage> {
       }
 
       await _donationService.createDonation(
-        donorId: 'USER_ID', // Get from auth
+        donorId: auth.user!.userId,
         medicineName: _medicineNameController.text,
         medicineType: _selectedMedicineType!,
         quantity: int.parse(_quantityController.text),
         expiryDate: _selectedExpiryDate!,
         donorLocation: _locationController.text,
-        latitude: 0.0, // Get from location service
-        longitude: 0.0, // Get from location service
+        latitude: _selectedLatitude,
+        longitude: _selectedLongitude,
         photoUrl: photoUrl,
         dosage: _dosageController.text,
         description: _descriptionController.text,
@@ -348,23 +384,79 @@ class _DonateMedicinePageState extends State<DonateMedicinePage> {
 
                 const SizedBox(height: 16),
 
-                // Location
-                TextFormField(
-                  controller: _locationController,
-                  decoration: InputDecoration(
-                    labelText: 'Your Location',
-                    hintText: 'e.g., Downtown Clinic',
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    prefixIcon: const Icon(Icons.location_on),
+                // Location with Map Picker
+                const Text(
+                  'Your Location',
+                  style: TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w600,
+                    color: Colors.black87,
                   ),
-                  validator: (value) {
-                    if (value == null || value.isEmpty) {
-                      return 'Please enter your location';
-                    }
-                    return null;
-                  },
+                ),
+                const SizedBox(height: 8),
+                Row(
+                  children: [
+                    Expanded(
+                      child: TextFormField(
+                        controller: _locationController,
+                        decoration: InputDecoration(
+                          labelText: 'Location Name',
+                          hintText: 'e.g., Downtown Clinic',
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          prefixIcon: const Icon(Icons.location_on),
+                        ),
+                        validator: (value) {
+                          if (value == null || value.isEmpty) {
+                            return 'Please enter your location';
+                          }
+                          return null;
+                        },
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    GestureDetector(
+                      onTap: _openLocationPicker,
+                      child: Container(
+                        height: 56,
+                        width: 56,
+                        decoration: BoxDecoration(
+                          color: const Color.fromARGB(255, 4, 113, 78),
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: const Icon(
+                          Icons.map,
+                          color: Colors.white,
+                          size: 24,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 8),
+                Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: Colors.blue.shade50,
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(color: Colors.blue.shade200),
+                  ),
+                  child: Row(
+                    children: [
+                      const Icon(Icons.info, color: Colors.blue, size: 18),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          'Lat: ${_selectedLatitude.toStringAsFixed(4)}, Lng: ${_selectedLongitude.toStringAsFixed(4)}',
+                          style: const TextStyle(
+                            fontSize: 12,
+                            color: Colors.blue,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
 
                 const SizedBox(height: 16),

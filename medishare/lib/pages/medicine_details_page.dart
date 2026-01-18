@@ -5,6 +5,7 @@ import 'package:medishare/services/user_service.dart';
 import 'package:medishare/models/user.dart';
 import 'package:provider/provider.dart';
 import 'package:medishare/state/auth_state.dart';
+import 'chat_page.dart';
 
 // OpenStreetMap imports (NO API)
 import 'package:flutter_map/flutter_map.dart';
@@ -129,21 +130,69 @@ class _MedicineDetailsPageState extends State<MedicineDetailsPage> {
               const SizedBox(height: 16),
               _buildLocationSection(),
               const SizedBox(height: 32),
-              SizedBox(
-                width: double.infinity,
-                height: 56,
-                child: ElevatedButton(
-                  onPressed: _isRequesting ? null : _requestMedicine,
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color.fromARGB(255, 4, 113, 78),
-                  ),
-                  child: _isRequesting
-                      ? const CircularProgressIndicator(color: Colors.white)
-                      : const Text(
-                          'Request This Medicine',
-                          style: TextStyle(color: Colors.white),
+              Row(
+                children: [
+                  Expanded(
+                    flex: 2,
+                    child: SizedBox(
+                      height: 56,
+                      child: ElevatedButton(
+                        onPressed: _isRequesting ? null : _requestMedicine,
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: const Color.fromARGB(
+                            255,
+                            4,
+                            113,
+                            78,
+                          ),
                         ),
-                ),
+                        child: _isRequesting
+                            ? const CircularProgressIndicator(
+                                color: Colors.white,
+                              )
+                            : const Text(
+                                'Request This Medicine',
+                                style: TextStyle(color: Colors.white),
+                              ),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: SizedBox(
+                      height: 56,
+                      child: OutlinedButton(
+                        onPressed: _donor != null
+                            ? () {
+                                Navigator.push(
+                                  context,
+                                  MaterialPageRoute(
+                                    builder: (context) => ChatPage(
+                                      requestId:
+                                          'inquiry_${widget.donation.donationId}',
+                                      otherUserId: widget.donation.donorId,
+                                      otherUserName: _donor!.name,
+                                    ),
+                                  ),
+                                );
+                              }
+                            : null,
+                        style: OutlinedButton.styleFrom(
+                          foregroundColor: const Color.fromARGB(
+                            255,
+                            4,
+                            113,
+                            78,
+                          ),
+                          side: const BorderSide(
+                            color: Color.fromARGB(255, 4, 113, 78),
+                          ),
+                        ),
+                        child: const Icon(Icons.chat_outlined),
+                      ),
+                    ),
+                  ),
+                ],
               ),
             ],
           ),

@@ -133,4 +133,21 @@ class ChatService {
       return 0;
     }
   }
+
+  /// Get all messages involving a user (for messages list)
+  Future<List<ChatMessage>> getAllUserMessages(String userId) async {
+    try {
+      final response = await _supabase
+          .from('chat_messages')
+          .select()
+          .or('sender_id.eq.$userId,recipient_id.eq.$userId')
+          .order('created_at', ascending: false);
+
+      return (response as List)
+          .map((row) => _mapRowToChatMessage(row as Map<String, dynamic>))
+          .toList();
+    } catch (e) {
+      throw Exception('Failed to fetch user messages: $e');
+    }
+  }
 }

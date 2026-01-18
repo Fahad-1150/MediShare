@@ -4,6 +4,7 @@ import '../state/auth_state.dart';
 import '../services/request_service.dart';
 import '../services/donation_service.dart';
 import '../models/request.dart';
+import '../models/donation.dart';
 import 'file_report_page.dart';
 import 'view_reports_page.dart';
 import 'chat_page.dart';
@@ -19,12 +20,37 @@ class _MyRequestsPageState extends State<MyRequestsPage> {
   final RequestService _requestService = RequestService();
   final DonationService _donationService = DonationService();
   late Future<List<MedicineRequest>> _myRequests;
+  Map<String, Donation?> _donations = {};
 
   @override
   void initState() {
     super.initState();
     final auth = context.read<AuthState>();
-    _myRequests = _requestService.getRequestsByRequester(auth.user!.userId);
+    _myRequests = _loadRequests(auth.user!.userId);
+  }
+
+  Future<List<MedicineRequest>> _loadRequests(String userId) async {
+    try {
+      var requests = await _requestService.getRequestsByRequester(userId);
+
+      // Load donation info for approved/fulfilled requests to check availability
+      for (final request in requests) {
+        if (request.assignedDonationId != null) {
+          try {
+            final donation = await _donationService.getDonationById(
+              request.assignedDonationId!,
+            );
+            _donations[request.assignedDonationId!] = donation;
+          } catch (e) {
+            // Handle error silently
+          }
+        }
+      }
+
+      return requests;
+    } catch (e) {
+      throw Exception('Failed to load requests: $e');
+    }
   }
 
   Future<void> _confirmReceived(MedicineRequest request) async {
@@ -207,20 +233,32 @@ class _MyRequestsPageState extends State<MyRequestsPage> {
           itemCount: requests.length,
           itemBuilder: (context, index) {
             final request = requests[index];
-            return _buildRequestCard(request);
+            final donation = request.assignedDonationId != null
+                ? _donations[request.assignedDonationId!]
+                : null;
+
+            // Check if donation is unavailable
+            final isUnavailable =
+                request.status == RequestStatus.approved &&
+                donation != null &&
+                donation.quantity == 0;
+
+            return _buildRequestCard(request, isUnavailable);
           },
         );
       },
     );
   }
 
-  Widget _buildRequestCard(MedicineRequest request) {
+  Widget _buildRequestCard(MedicineRequest request, bool isUnavailable) {
     return Container(
       margin: const EdgeInsets.only(bottom: 16),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: isUnavailable ? Colors.red.shade50 : Colors.white,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: Colors.grey.shade200),
+        border: Border.all(
+          color: isUnavailable ? Colors.red.shade300 : Colors.grey.shade200,
+        ),
         boxShadow: [
           BoxShadow(
             color: Colors.black.withOpacity(0.05),
@@ -242,13 +280,21 @@ class _MyRequestsPageState extends State<MyRequestsPage> {
                   width: 64,
                   height: 64,
                   decoration: BoxDecoration(
-                    color: Colors.grey.shade100,
+                    color: isUnavailable
+                        ? Colors.red.shade100
+                        : Colors.grey.shade100,
                     borderRadius: BorderRadius.circular(12),
-                    border: Border.all(color: Colors.grey.shade300),
+                    border: Border.all(
+                      color: isUnavailable
+                          ? Colors.red.shade300
+                          : Colors.grey.shade300,
+                    ),
                   ),
                   child: Icon(
                     Icons.medical_services,
-                    color: Colors.grey.shade400,
+                    color: isUnavailable
+                        ? Colors.red.shade400
+                        : Colors.grey.shade400,
                     size: 32,
                   ),
                 ),
@@ -280,17 +326,23 @@ class _MyRequestsPageState extends State<MyRequestsPage> {
                           vertical: 4,
                         ),
                         decoration: BoxDecoration(
-                          color: _getStatusColor(
-                            request.status,
-                          ).withOpacity(0.1),
+                          color: isUnavailable
+                              ? Colors.red.withOpacity(0.1)
+                              : _getStatusColor(
+                                  request.status,
+                                ).withOpacity(0.1),
                           borderRadius: BorderRadius.circular(6),
                         ),
                         child: Text(
-                          _getStatusText(request.status),
+                          isUnavailable
+                              ? 'UNAVAILABLE'
+                              : _getStatusText(request.status),
                           style: TextStyle(
                             fontSize: 10,
                             fontWeight: FontWeight.bold,
-                            color: _getStatusColor(request.status),
+                            color: isUnavailable
+                                ? Colors.red
+                                : _getStatusColor(request.status),
                           ),
                         ),
                       ),

@@ -7,7 +7,7 @@ import 'pages/landing_page.dart';
 import 'pages/login_page.dart';
 import 'pages/signup_page.dart';
 import 'pages/list.dart';
-import 'pages/donate_page.dart';
+import 'pages/donate_medicine_page.dart';
 
 import 'pages/admin_panel.dart';
 import 'pages/user_panel.dart';
@@ -52,7 +52,7 @@ class MediShareApp extends StatelessWidget {
         '/home': (_) => const MainShell(),
         '/login': (_) => const LoginPage(),
         '/signup': (_) => const SignupPage(),
-        '/donate': (_) => const DonatePage(),
+        '/donate': (_) => const DonateMedicinePage(),
         '/browse': (_) => const MedicineListPage(),
         '/admin': (_) => const AdminPanel(),
         '/profile': (_) => const UserPanel(),
@@ -101,7 +101,7 @@ class _MainShellState extends State<MainShell> {
     _pages = [
       const LandingPage(),
       const MedicineListPage(),
-      const DonatePage(),
+      const DonateMedicinePage(),
     ];
   }
 
