@@ -3,6 +3,7 @@ import '../services/chat_service.dart';
 import '../models/chat_message.dart';
 import 'package:provider/provider.dart';
 import '../state/auth_state.dart';
+import 'dart:async';
 
 class ChatPage extends StatefulWidget {
   final String requestId;
@@ -25,6 +26,8 @@ class _ChatPageState extends State<ChatPage> {
   final TextEditingController _messageController = TextEditingController();
   late Future<List<ChatMessage>> _messages;
   final ScrollController _scrollController = ScrollController();
+  bool _isSending = false;
+  Timer? _refreshTimer;
 
   @override
   void initState() {
@@ -32,22 +35,30 @@ class _ChatPageState extends State<ChatPage> {
     _loadMessages();
     final auth = context.read<AuthState>();
     _chatService.markAllMessagesAsRead(widget.requestId, auth.user!.userId);
+
+    // Start auto-refresh timer - refreshes every 2 seconds
   }
 
   void _loadMessages() {
-    _messages = _chatService.getConversation(
-      widget.requestId,
-      context.read<AuthState>().user!.userId,
-      widget.otherUserId,
-    );
+    if (mounted) {
+      setState(() {
+        _messages = _chatService.getConversation(
+          widget.requestId,
+          context.read<AuthState>().user!.userId,
+          widget.otherUserId,
+        );
+      });
+    }
   }
 
   Future<void> _sendMessage() async {
-    if (_messageController.text.trim().isEmpty) return;
+    if (_messageController.text.trim().isEmpty || _isSending) return;
 
     final auth = context.read<AuthState>();
     final messageText = _messageController.text.trim();
     _messageController.clear();
+
+    setState(() => _isSending = true);
 
     try {
       await _chatService.sendMessage(
@@ -58,26 +69,29 @@ class _ChatPageState extends State<ChatPage> {
         message: messageText,
       );
 
-      setState(() {
-        _messages = _chatService.getConversation(
-          widget.requestId,
-          auth.user!.userId,
-          widget.otherUserId,
-        );
-      });
+      // Reload messages
+      _loadMessages();
+      if (mounted) {
+        setState(() => _isSending = false);
+      }
 
       // Scroll to bottom
-      Future.delayed(const Duration(milliseconds: 100), () {
-        _scrollController.animateTo(
-          _scrollController.position.maxScrollExtent,
-          duration: const Duration(milliseconds: 300),
-          curve: Curves.easeOut,
-        );
+      Future.delayed(const Duration(milliseconds: 300), () {
+        if (mounted && _scrollController.hasClients) {
+          _scrollController.animateTo(
+            _scrollController.position.maxScrollExtent,
+            duration: const Duration(milliseconds: 300),
+            curve: Curves.easeOut,
+          );
+        }
       });
     } catch (e) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text('Error sending message: $e')));
+      if (mounted) {
+        setState(() => _isSending = false);
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Error sending message: $e')));
+      }
     }
   }
 
@@ -85,6 +99,7 @@ class _ChatPageState extends State<ChatPage> {
   void dispose() {
     _messageController.dispose();
     _scrollController.dispose();
+    _refreshTimer?.cancel(); // Cancel the timer when widget is disposed
     super.dispose();
   }
 
@@ -203,6 +218,7 @@ class _ChatPageState extends State<ChatPage> {
                     controller: _messageController,
                     maxLines: null,
                     minLines: 1,
+                    enabled: !_isSending,
                     decoration: InputDecoration(
                       hintText: 'Type your message...',
                       hintStyle: TextStyle(color: Colors.grey.shade400),
@@ -223,18 +239,25 @@ class _ChatPageState extends State<ChatPage> {
                 ),
                 const SizedBox(width: 12),
                 GestureDetector(
-                  onTap: _sendMessage,
+                  onTap: _isSending ? null : _sendMessage,
                   child: Container(
                     padding: const EdgeInsets.all(12),
                     decoration: BoxDecoration(
-                      color: Colors.blue,
+                      color: _isSending ? Colors.grey : Colors.blue,
                       borderRadius: BorderRadius.circular(24),
                     ),
-                    child: const Icon(
-                      Icons.send,
-                      color: Colors.white,
-                      size: 20,
-                    ),
+                    child: _isSending
+                        ? const SizedBox(
+                            width: 20,
+                            height: 20,
+                            child: CircularProgressIndicator(
+                              valueColor: AlwaysStoppedAnimation<Color>(
+                                Colors.white,
+                              ),
+                              strokeWidth: 2,
+                            ),
+                          )
+                        : const Icon(Icons.send, color: Colors.white, size: 20),
                   ),
                 ),
               ],

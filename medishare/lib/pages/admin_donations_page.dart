@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:medishare/models/donation.dart';
 import 'package:medishare/services/donation_service.dart';
+import 'package:medishare/widgets/medicine_details_dialog.dart';
 
 class AdminDonationsPage extends StatefulWidget {
   const AdminDonationsPage({super.key});
@@ -200,130 +201,144 @@ class _AdminDonationsPageState extends State<AdminDonationsPage> {
   }
 
   Widget _buildDonationCard(Donation donation) {
-    return Card(
-      margin: const EdgeInsets.only(bottom: 16),
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // Header with Medicine Name and Status
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        donation.medicineName,
-                        style: const TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.bold,
-                          color: Colors.black87,
-                        ),
-                      ),
-                      const SizedBox(height: 4),
-                      Text(
-                        donation.medicineType,
-                        style: TextStyle(
-                          fontSize: 12,
-                          color: Colors.grey.shade600,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 12,
-                    vertical: 6,
-                  ),
-                  decoration: BoxDecoration(
-                    color: _getStatusColor(donation.status),
-                    borderRadius: BorderRadius.circular(20),
-                  ),
-                  child: Text(
-                    donation.status.toString().split('.').last.toUpperCase(),
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontWeight: FontWeight.bold,
-                      fontSize: 10,
-                    ),
-                  ),
-                ),
-              ],
-            ),
-
-            const SizedBox(height: 12),
-
-            // Info Grid
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                _buildInfoChip('${donation.quantity} Units', Icons.numbers),
-                _buildInfoChip(donation.donorLocation, Icons.location_on),
-                _buildInfoChip(
-                  '${donation.expiryDate.day}/${donation.expiryDate.month}',
-                  Icons.calendar_today,
-                ),
-              ],
-            ),
-
-            const SizedBox(height: 12),
-
-            // Donor ID
-            Text(
-              'Donor: ${donation.donorId.toString().substring(0, 8)}...',
-              style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
-            ),
-
-            if (donation.description != null &&
-                donation.description!.isNotEmpty) ...[
-              const SizedBox(height: 8),
-              Text(
-                donation.description!,
-                style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
-                maxLines: 2,
-                overflow: TextOverflow.ellipsis,
-              ),
-            ],
-
-            const SizedBox(height: 12),
-
-            // Action Buttons
-            if (donation.status == DonationStatus.pending)
+    return GestureDetector(
+      onTap: () {
+        // Show medicine details dialog when clicked
+        showDialog(
+          context: context,
+          builder: (context) => MedicineDetailsDialog(donation: donation),
+        );
+      },
+      child: Card(
+        margin: const EdgeInsets.only(bottom: 16),
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // Header with Medicine Name and Status
               Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
                   Expanded(
-                    child: ElevatedButton(
-                      onPressed: () => _approveDonation(donation.donationId),
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: const Color.fromARGB(255, 4, 113, 78),
-                      ),
-                      child: const Text('Approve'),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          donation.medicineName,
+                          style: const TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.black87,
+                          ),
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          donation.medicineType,
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: Colors.grey.shade600,
+                          ),
+                        ),
+                      ],
                     ),
                   ),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: ElevatedButton(
-                      onPressed: () => _rejectDonation(donation.donationId),
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: Colors.red,
-                      ),
-                      child: const Text('Reject'),
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 12,
+                      vertical: 6,
                     ),
-                  ),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: OutlinedButton(
-                      onPressed: () => _deleteDonation(donation.donationId),
-                      child: const Text('Delete'),
+                    decoration: BoxDecoration(
+                      color: _getStatusColor(donation.status),
+                      borderRadius: BorderRadius.circular(20),
+                    ),
+                    child: Text(
+                      donation.status.toString().split('.').last.toUpperCase(),
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontWeight: FontWeight.bold,
+                        fontSize: 10,
+                      ),
                     ),
                   ),
                 ],
               ),
-          ],
+
+              const SizedBox(height: 12),
+
+              // Info Grid
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  _buildInfoChip('${donation.quantity} Units', Icons.numbers),
+                  _buildInfoChip(donation.donorLocation, Icons.location_on),
+                  _buildInfoChip(
+                    '${donation.expiryDate.day}/${donation.expiryDate.month}',
+                    Icons.calendar_today,
+                  ),
+                ],
+              ),
+
+              const SizedBox(height: 12),
+
+              // Donor ID
+              Text(
+                'Donor: ${donation.donorId.toString().substring(0, 8)}...',
+                style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
+              ),
+
+              if (donation.description != null &&
+                  donation.description!.isNotEmpty) ...[
+                const SizedBox(height: 8),
+                Text(
+                  donation.description!,
+                  style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ],
+
+              const SizedBox(height: 12),
+
+              // Action Buttons
+              if (donation.status == DonationStatus.pending)
+                Row(
+                  children: [
+                    Expanded(
+                      child: ElevatedButton(
+                        onPressed: () => _approveDonation(donation.donationId),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: const Color.fromARGB(
+                            255,
+                            4,
+                            113,
+                            78,
+                          ),
+                        ),
+                        child: const Text('Approve'),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: ElevatedButton(
+                        onPressed: () => _rejectDonation(donation.donationId),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Colors.red,
+                        ),
+                        child: const Text('Reject'),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: OutlinedButton(
+                        onPressed: () => _deleteDonation(donation.donationId),
+                        child: const Text('Delete'),
+                      ),
+                    ),
+                  ],
+                ),
+            ],
+          ),
         ),
       ),
     );

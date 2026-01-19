@@ -11,6 +11,7 @@ import '../models/user.dart';
 import '../models/report.dart';
 import '../models/request.dart';
 import '../models/chat_message.dart';
+import '../widgets/medicine_details_dialog.dart';
 
 class AdminPanel extends StatefulWidget {
   const AdminPanel({super.key});
@@ -46,6 +47,12 @@ class _AdminPanelState extends State<AdminPanel> {
 
   String _reportStatusFilter = 'All';
   bool _reportSortNewest = true;
+
+  // Verification Queue Filters
+  String _verificationSearchFilter = '';
+  String _verificationExpiryFilter = 'All'; // All, Expiring Soon, Fresh
+  String _verificationDonorFilter = '';
+  String _verificationApprovalFilter = 'Pending'; // Pending, All
 
   @override
   Widget build(BuildContext context) {
@@ -181,6 +188,79 @@ class _AdminPanelState extends State<AdminPanel> {
           ],
         ),
         const SizedBox(height: 16),
+        // Search Filter by Medicine Name
+        TextField(
+          decoration: InputDecoration(
+            hintText: 'Search by medicine name...',
+            prefixIcon: const Icon(Icons.search),
+            border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+            contentPadding: const EdgeInsets.symmetric(
+              horizontal: 16,
+              vertical: 12,
+            ),
+          ),
+          onChanged: (value) =>
+              setState(() => _verificationSearchFilter = value),
+        ),
+        const SizedBox(height: 12),
+        // Filter Chips
+        SingleChildScrollView(
+          scrollDirection: Axis.horizontal,
+          child: Row(
+            children: [
+              // Expiring Soon Filter
+              FilterChip(
+                label: const Text('Expiring Soon (≤7 days)'),
+                selected: _verificationExpiryFilter == 'Expiring Soon',
+                onSelected: (selected) => setState(() {
+                  _verificationExpiryFilter = selected
+                      ? 'Expiring Soon'
+                      : 'All';
+                }),
+                backgroundColor: Colors.grey.shade200,
+                selectedColor: Colors.orange.shade300,
+              ),
+              const SizedBox(width: 8),
+              // Fresh Stock Filter
+              FilterChip(
+                label: const Text('Fresh Stock (>7 days)'),
+                selected: _verificationExpiryFilter == 'Fresh',
+                onSelected: (selected) => setState(() {
+                  _verificationExpiryFilter = selected ? 'Fresh' : 'All';
+                }),
+                backgroundColor: Colors.grey.shade200,
+                selectedColor: Colors.green.shade300,
+              ),
+              const SizedBox(width: 8),
+              // All Status Filter
+              FilterChip(
+                label: const Text('Show All Status'),
+                selected: _verificationApprovalFilter == 'All',
+                onSelected: (selected) => setState(() {
+                  _verificationApprovalFilter = selected ? 'All' : 'Pending';
+                }),
+                backgroundColor: Colors.grey.shade200,
+                selectedColor: Colors.blue.shade300,
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 12),
+        // Search Filter by Donor Name
+        TextField(
+          decoration: InputDecoration(
+            hintText: 'Search by donor name...',
+            prefixIcon: const Icon(Icons.person),
+            border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+            contentPadding: const EdgeInsets.symmetric(
+              horizontal: 16,
+              vertical: 12,
+            ),
+          ),
+          onChanged: (value) =>
+              setState(() => _verificationDonorFilter = value),
+        ),
+        const SizedBox(height: 16),
         FutureBuilder<List<Donation>>(
           future: _donationService.getPendingDonations(),
           builder: (context, snapshot) {
@@ -188,25 +268,90 @@ class _AdminPanelState extends State<AdminPanel> {
               return const Center(child: CircularProgressIndicator());
             }
 
-            final donations = snapshot.data ?? [];
+            var donations = snapshot.data ?? [];
+
+            // Apply Filters
+            // Filter by medicine name
+            if (_verificationSearchFilter.isNotEmpty) {
+              donations = donations
+                  .where(
+                    (d) => (d.medicineName ?? '').toLowerCase().contains(
+                      _verificationSearchFilter.toLowerCase(),
+                    ),
+                  )
+                  .toList();
+            }
+
+            // Filter by expiry date
+            if (_verificationExpiryFilter == 'Expiring Soon') {
+              donations = donations.where((d) {
+                final daysUntilExpiry = d.expiryDate
+                    .difference(DateTime.now())
+                    .inDays;
+                return daysUntilExpiry >= 0 && daysUntilExpiry <= 7;
+              }).toList();
+            } else if (_verificationExpiryFilter == 'Fresh') {
+              donations = donations.where((d) {
+                final daysUntilExpiry = d.expiryDate
+                    .difference(DateTime.now())
+                    .inDays;
+                return daysUntilExpiry > 7;
+              }).toList();
+            }
+
             if (donations.isEmpty) {
               return Center(
                 child: Padding(
                   padding: const EdgeInsets.symmetric(vertical: 32),
                   child: Text(
-                    'No pending donations',
+                    'No donations match your filters',
                     style: TextStyle(color: Colors.grey.shade500),
                   ),
                 ),
               );
             }
 
-            return ListView.builder(
-              shrinkWrap: true,
-              physics: const NeverScrollableScrollPhysics(),
-              itemCount: donations.length,
-              itemBuilder: (context, index) {
-                return _buildDonationCard(donations[index]);
+            return FutureBuilder<List<UserModel>>(
+              future: _userService.getAllUsers(),
+              builder: (context, userSnapshot) {
+                final users = userSnapshot.data ?? [];
+
+                // Filter by donor name
+                var filteredDonations = donations;
+                if (_verificationDonorFilter.isNotEmpty && users.isNotEmpty) {
+                  final filteredUserIds = users
+                      .where(
+                        (u) => (u.name ?? '').toLowerCase().contains(
+                          _verificationDonorFilter.toLowerCase(),
+                        ),
+                      )
+                      .map((u) => u.userId)
+                      .toList();
+                  filteredDonations = filteredDonations
+                      .where((d) => filteredUserIds.contains(d.donorId))
+                      .toList();
+                }
+
+                if (filteredDonations.isEmpty) {
+                  return Center(
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 32),
+                      child: Text(
+                        'No donations match your filters',
+                        style: TextStyle(color: Colors.grey.shade500),
+                      ),
+                    ),
+                  );
+                }
+
+                return ListView.builder(
+                  shrinkWrap: true,
+                  physics: const NeverScrollableScrollPhysics(),
+                  itemCount: filteredDonations.length,
+                  itemBuilder: (context, index) {
+                    return _buildDonationCard(filteredDonations[index]);
+                  },
+                );
               },
             );
           },
@@ -372,6 +517,35 @@ class _AdminPanelState extends State<AdminPanel> {
           const SizedBox(height: 16),
           Row(
             children: [
+              Expanded(
+                child: ElevatedButton(
+                  onPressed: () {
+                    showDialog(
+                      context: context,
+                      builder: (context) =>
+                          MedicineDetailsDialog(donation: donation),
+                    );
+                  },
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.blue.shade600,
+                    padding: const EdgeInsets.symmetric(vertical: 12),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    elevation: 4,
+                  ),
+                  child: const Text(
+                    'See Details',
+                    style: TextStyle(
+                      fontSize: 11,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.white,
+                      letterSpacing: 0.5,
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 12),
               Expanded(
                 child: ElevatedButton(
                   onPressed: () async {
@@ -2127,34 +2301,7 @@ class _AdminPanelState extends State<AdminPanel> {
   void _showMedicineDetails(Donation donation) {
     showDialog(
       context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Medicine Details'),
-        content: SingleChildScrollView(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              _buildDetailRow('ID', donation.donationId),
-              _buildDetailRow('Name', donation.medicineName),
-              _buildDetailRow('Type', donation.medicineType),
-              _buildDetailRow('Quantity', '${donation.quantity}'),
-              _buildDetailRow('Expiry', donation.expiryDate.toString()),
-              _buildDetailRow(
-                'Status',
-                donation.status.toString().split('.').last,
-              ),
-              _buildDetailRow('Location', donation.donorLocation),
-              _buildDetailRow('Donor', donation.donorId),
-            ],
-          ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Close'),
-          ),
-        ],
-      ),
+      builder: (context) => MedicineDetailsDialog(donation: donation),
     );
   }
 

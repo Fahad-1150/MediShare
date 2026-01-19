@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../models/medicine.dart';
+import 'dart:convert';
 
 class MedicineCard extends StatelessWidget {
   final Medicine medicine;
@@ -13,17 +14,15 @@ class MedicineCard extends StatelessWidget {
     return Card(
       elevation: 4,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+      clipBehavior: Clip.antiAlias,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          ClipRRect(
-            borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
-            child: Image.network(
-              medicine.photoUrl,
-              height: 160,
-              width: double.infinity,
-              fit: BoxFit.cover,
-            ),
+          // Image covering full width
+          SizedBox(
+            width: double.infinity,
+            height: 200,
+            child: _buildImageWidget(medicine.photoUrl),
           ),
           Padding(
             padding: const EdgeInsets.all(16),
@@ -70,6 +69,47 @@ class MedicineCard extends StatelessWidget {
             ),
           ),
         ],
+      ),
+    );
+  }
+
+  /// Build image widget - handles both base64 and network URLs
+  Widget _buildImageWidget(String photoUrl) {
+    try {
+      // Check if it's base64 encoded data
+      if (photoUrl.startsWith('iVBO') ||
+          photoUrl.startsWith('/9j/') ||
+          photoUrl.contains('base64') ||
+          !photoUrl.startsWith('http')) {
+        // It's base64 or file path
+        try {
+          final decodedBytes = base64Decode(photoUrl);
+          return Image.memory(
+            decodedBytes,
+            fit: BoxFit.cover,
+            errorBuilder: (context, error, stackTrace) => _buildPlaceholder(),
+          );
+        } catch (e) {
+          return _buildPlaceholder();
+        }
+      } else {
+        // It's a network URL
+        return Image.network(
+          photoUrl,
+          fit: BoxFit.cover,
+          errorBuilder: (context, error, stackTrace) => _buildPlaceholder(),
+        );
+      }
+    } catch (e) {
+      return _buildPlaceholder();
+    }
+  }
+
+  Widget _buildPlaceholder() {
+    return Container(
+      color: Colors.grey.shade200,
+      child: const Center(
+        child: Icon(Icons.image_not_supported, size: 64, color: Colors.grey),
       ),
     );
   }
