@@ -27,8 +27,8 @@ class _DonateMedicinePageState extends State<DonateMedicinePage> {
   XFile? _selectedImage;
   DateTime? _selectedExpiryDate;
   bool _isSubmitting = false;
-  double _selectedLatitude = 24.8607; // Default: Karachi
-  double _selectedLongitude = 67.0011;
+  double _selectedLatitude = 23.7810672;
+  double _selectedLongitude = 90.2548716;
 
   final _medicineNameController = TextEditingController();
   final _quantityController = TextEditingController();
@@ -45,7 +45,7 @@ class _DonateMedicinePageState extends State<DonateMedicinePage> {
     'Cream',
     'Ointment',
     'Spray',
-    'Fahad',
+    'other',
   ];
 
   @override
@@ -269,7 +269,8 @@ class _DonateMedicinePageState extends State<DonateMedicinePage> {
                     ),
                   ],
                 ),
-                if (_selectedImage != null || widget.donationToEdit?.photoUrl != null) ...[
+                if (_selectedImage != null ||
+                    widget.donationToEdit?.photoUrl != null) ...[
                   const SizedBox(height: 12),
                   Container(
                     height: 200,
@@ -279,9 +280,9 @@ class _DonateMedicinePageState extends State<DonateMedicinePage> {
                       image: DecorationImage(
                         image: _selectedImage != null
                             ? (kIsWeb
-                                ? NetworkImage(_selectedImage!.path)
-                                : FileImage(File(_selectedImage!.path))
-                                    as ImageProvider)
+                                  ? NetworkImage(_selectedImage!.path)
+                                  : FileImage(File(_selectedImage!.path))
+                                        as ImageProvider)
                             : MemoryImage(
                                 base64Decode(widget.donationToEdit!.photoUrl!),
                               ),

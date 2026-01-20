@@ -19,6 +19,7 @@ class _MyMedicinesPageState extends State<MyMedicinesPage> {
   final RequestService _requestService = RequestService();
   late Future<List<Donation>> _myMedicines;
   Map<String, int> _requestCounts = {};
+  String _filterType = 'all'; // 'all' or 'near-expiry'
 
   @override
   void initState() {
@@ -35,9 +36,7 @@ class _MyMedicinesPageState extends State<MyMedicinesPage> {
   }
 
   Future<void> _loadRequestCounts(String userId) async {
-    final donations = await _donationService.getDonationsByDonor(
-      userId,
-    );
+    final donations = await _donationService.getDonationsByDonor(userId);
 
     for (final donation in donations) {
       try {
@@ -56,7 +55,9 @@ class _MyMedicinesPageState extends State<MyMedicinesPage> {
       context: context,
       builder: (context) => AlertDialog(
         title: const Text('Delete Medicine'),
-        content: Text('Are you sure you want to delete ${medicine.medicineName}?'),
+        content: Text(
+          'Are you sure you want to delete ${medicine.medicineName}?',
+        ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context, false),
@@ -133,41 +134,88 @@ class _MyMedicinesPageState extends State<MyMedicinesPage> {
   }
 
   Widget _buildHeader() {
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
-            const Text(
-              'My Medicines',
-              style: TextStyle(
-                fontSize: 24,
-                fontWeight: FontWeight.bold,
-                color: Colors.black,
-              ),
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  'My Medicines',
+                  style: TextStyle(
+                    fontSize: 24,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.black,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  _filterType == 'near-expiry'
+                      ? 'Expiring within 30 days'
+                      : 'All medicines you have added',
+                  style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
+                ),
+              ],
             ),
-            const SizedBox(height: 4),
-            Text(
-              'All medicines you have added',
-              style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
+            Container(
+              width: 48,
+              height: 48,
+              decoration: BoxDecoration(
+                color: Colors.orange.withOpacity(0.1),
+                borderRadius: BorderRadius.circular(16),
+              ),
+              child: const Icon(
+                Icons.medical_information,
+                color: Colors.orange,
+                size: 24,
+              ),
             ),
           ],
         ),
-        Container(
-          width: 48,
-          height: 48,
+        const SizedBox(height: 16),
+        _buildFilterButtons(),
+      ],
+    );
+  }
+
+  Widget _buildFilterButtons() {
+    return Row(
+      children: [
+        _buildFilterButton('All', 'all'),
+        const SizedBox(width: 12),
+        _buildFilterButton('Near Expiry (<30 days)', 'near-expiry'),
+      ],
+    );
+  }
+
+  Widget _buildFilterButton(String label, String filterValue) {
+    final isActive = _filterType == filterValue;
+    return Expanded(
+      child: GestureDetector(
+        onTap: () => setState(() => _filterType = filterValue),
+        child: Container(
+          padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 12),
           decoration: BoxDecoration(
-            color: Colors.orange.withOpacity(0.1),
-            borderRadius: BorderRadius.circular(16),
+            color: isActive ? Colors.orange : Colors.grey.shade100,
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(
+              color: isActive ? Colors.orange : Colors.grey.shade300,
+            ),
           ),
-          child: const Icon(
-            Icons.medical_information,
-            color: Colors.orange,
-            size: 24,
+          child: Text(
+            label,
+            textAlign: TextAlign.center,
+            style: TextStyle(
+              fontSize: 13,
+              fontWeight: FontWeight.bold,
+              color: isActive ? Colors.white : Colors.black87,
+            ),
           ),
         ),
-      ],
+      ),
     );
   }
 
@@ -195,7 +243,8 @@ class _MyMedicinesPageState extends State<MyMedicinesPage> {
           );
         }
 
-        final medicines = snapshot.data ?? [];
+        var medicines = snapshot.data ?? [];
+        medicines = _filterMedicines(medicines);
 
         if (medicines.isEmpty) {
           return Center(
@@ -210,9 +259,11 @@ class _MyMedicinesPageState extends State<MyMedicinesPage> {
                     color: Colors.grey.shade300,
                   ),
                   const SizedBox(height: 16),
-                  const Text(
-                    'No medicines added yet',
-                    style: TextStyle(
+                  Text(
+                    _filterType == 'near-expiry'
+                        ? 'No medicines expiring soon'
+                        : 'No medicines added yet',
+                    style: const TextStyle(
                       fontSize: 16,
                       fontWeight: FontWeight.bold,
                       color: Colors.black87,
@@ -220,7 +271,9 @@ class _MyMedicinesPageState extends State<MyMedicinesPage> {
                   ),
                   const SizedBox(height: 8),
                   Text(
-                    'Start by adding your first medicine',
+                    _filterType == 'near-expiry'
+                        ? 'All your medicines are still fresh!'
+                        : 'Start by adding your first medicine',
                     style: TextStyle(color: Colors.grey.shade600),
                   ),
                   const SizedBox(height: 24),
@@ -395,9 +448,7 @@ class _MyMedicinesPageState extends State<MyMedicinesPage> {
           // Details section
           Container(
             padding: const EdgeInsets.all(12),
-            decoration: BoxDecoration(
-              color: Colors.grey.shade50,
-            ),
+            decoration: BoxDecoration(color: Colors.grey.shade50),
             child: Column(
               children: [
                 Row(
@@ -459,13 +510,19 @@ class _MyMedicinesPageState extends State<MyMedicinesPage> {
                 TextButton.icon(
                   onPressed: () => _editMedicine(medicine),
                   icon: const Icon(Icons.edit, size: 18, color: Colors.blue),
-                  label: const Text('Edit', style: TextStyle(color: Colors.blue)),
+                  label: const Text(
+                    'Edit',
+                    style: TextStyle(color: Colors.blue),
+                  ),
                 ),
                 const SizedBox(width: 8),
                 TextButton.icon(
                   onPressed: () => _deleteMedicine(medicine),
                   icon: const Icon(Icons.delete, size: 18, color: Colors.red),
-                  label: const Text('Delete', style: TextStyle(color: Colors.red)),
+                  label: const Text(
+                    'Delete',
+                    style: TextStyle(color: Colors.red),
+                  ),
                 ),
               ],
             ),
@@ -550,5 +607,20 @@ class _MyMedicinesPageState extends State<MyMedicinesPage> {
     } catch (e) {
       return false;
     }
+  }
+
+  bool _isExpiringsoon(DateTime expiryDate) {
+    final today = DateTime.now();
+    final daysUntilExpiry = expiryDate.difference(today).inDays;
+    return daysUntilExpiry < 30 && daysUntilExpiry >= 0;
+  }
+
+  List<Donation> _filterMedicines(List<Donation> medicines) {
+    if (_filterType == 'near-expiry') {
+      return medicines
+          .where((medicine) => _isExpiringsoon(medicine.expiryDate))
+          .toList();
+    }
+    return medicines;
   }
 }

@@ -400,19 +400,21 @@ class _MedicineListPageState extends State<MedicineListPage> {
           ],
         ),
         child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
+          crossAxisAlignment:
+              CrossAxisAlignment.stretch, // Ensures children take full width
           children: [
-            // Medicine Image
-            Container(
-              height: 140,
-              decoration: BoxDecoration(
-                color: Colors.grey.shade100,
-                borderRadius: const BorderRadius.only(
-                  topLeft: Radius.circular(16),
-                  topRight: Radius.circular(16),
-                ),
+            // Medicine Image Header
+            ClipRRect(
+              // Added to ensure the image corners match the card corners
+              borderRadius: const BorderRadius.only(
+                topLeft: Radius.circular(16),
+                topRight: Radius.circular(16),
               ),
-              child: _buildMedicineImage(donation.photoUrl),
+              child: SizedBox(
+                height: 140,
+                width: double.infinity, // Forces width to fill card
+                child: _buildMedicineImage(donation.photoUrl),
+              ),
             ),
             // Medicine Info
             Padding(
